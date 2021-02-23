@@ -31,7 +31,10 @@ namespace HL21
 
             request_json_stream.Flush();
 
-            var response = await m_http.PostAsync("/explore", new System.Net.Http.ByteArrayContent(request_text_stream.ToArray()));
+            var request = new System.Net.Http.ByteArrayContent(request_text_stream.ToArray());
+            request.Headers.Add("Content-Type", "application/json");
+
+            var response = await m_http.PostAsync("/explore", request);
             if (response.StatusCode != System.Net.HttpStatusCode.OK)
                 return null;
 
@@ -46,17 +49,22 @@ namespace HL21
             };
         }
 
-        public async System.Threading.Tasks.Task<License> post_free_license()
+        public async System.Threading.Tasks.Task<License> post_license(int coin = -1)
         {
             var request_text_stream = new System.IO.MemoryStream();
             var request_json_stream = new System.Text.Json.Utf8JsonWriter(request_text_stream);
 
             request_json_stream.WriteStartArray();
+            if (coin != -1)
+                request_json_stream.WriteNumberValue(coin);
             request_json_stream.WriteEndArray();
 
             request_json_stream.Flush();
 
-            var response = await m_http.PostAsync("/licenses", new System.Net.Http.ByteArrayContent(request_text_stream.ToArray()));
+            var request = new System.Net.Http.ByteArrayContent(request_text_stream.ToArray());
+            request.Headers.Add("Content-Type", "application/json");
+
+            var response = await m_http.PostAsync("/licenses", request);
             if (response.StatusCode != System.Net.HttpStatusCode.OK)
                 return null;
 
@@ -83,7 +91,10 @@ namespace HL21
 
             request_json_stream.Flush();
 
-            var response = await m_http.PostAsync("/dig", new System.Net.Http.ByteArrayContent(request_text_stream.ToArray()));
+            var request = new System.Net.Http.ByteArrayContent(request_text_stream.ToArray());
+            request.Headers.Add("Content-Type", "application/json");
+
+            var response = await m_http.PostAsync("/dig", request);
             if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
                 return new System.Collections.Generic.List<string>();
             if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
@@ -115,7 +126,10 @@ namespace HL21
 
             request_json_stream.Flush();
 
-            var response = await m_http.PostAsync("/cash", new System.Net.Http.ByteArrayContent(request_text_stream.ToArray()));
+            var request = new System.Net.Http.ByteArrayContent(request_text_stream.ToArray());
+            request.Headers.Add("Content-Type", "application/json");
+
+            var response = await m_http.PostAsync("/cash", request);
             if (response.StatusCode != System.Net.HttpStatusCode.OK)
                 return null;
 
@@ -141,7 +155,7 @@ namespace HL21
             }
         }
 
-        public async System.Threading.Tasks.Task dig_blocks(System.Collections.Generic.List<Block> blocks)
+        public async System.Threading.Tasks.Task dig_blocks(System.Collections.Generic.List<Block> blocks, System.Collections.Generic.List<int> coins)
         {
             while (0 < blocks.Count)
             {
@@ -157,7 +171,15 @@ namespace HL21
                         for (int h = 0; h < 10 && 0 < result.amount; ++h)
                         {
                             while (m_license is null || m_license.digAllowed <= m_license.digUsed)
-                                m_license = await post_free_license();
+                            {
+                                int coin = -1;
+                                if (0 < coins.Count)
+                                {
+                                    coin = coins[0];
+                                    coins.RemoveAt(0);
+                                }
+                                m_license = await post_license(coin);
+                            }
                             System.Collections.Generic.List<string> treasures = null;
                             while (treasures is null)
                                 treasures = await post_dig(m_license.id, x, y, h + 1);
@@ -173,6 +195,7 @@ namespace HL21
                                 System.Collections.Generic.List<int> money = null;
                                 while (money is null)
                                     money = await post_cash(treasure);
+                                coins.AddRange(money);
                             }
                         }
                     }
@@ -209,7 +232,7 @@ namespace HL21
             int port = int.Parse(System.Environment.GetEnvironmentVariable("Port") ?? "8000");
             string schema = System.Environment.GetEnvironmentVariable("Schema") ?? "http";
 
-            var max_clients = 50;
+            var max_clients = 100;
             var max_dig_clients = 10;
 
             var clients = new System.Collections.Generic.List<Client>(max_clients);
@@ -227,12 +250,14 @@ namespace HL21
             System.Threading.Tasks.Task.WhenAll(explore_tasks).Wait();
             blocks.Sort();
 
+            var coins = new System.Collections.Generic.List<int>(1000000);
+
             // Digs
             // 10 connections on 10 free licenses
             var dig_tasks = new System.Collections.Generic.List<System.Threading.Tasks.Task>(10);
             for (int i = 0; i < max_clients; ++i)
                 if (i < max_dig_clients)
-                    dig_tasks.Add(clients[i].dig_blocks(blocks));
+                    dig_tasks.Add(clients[i].dig_blocks(blocks, coins));
                 else
                     clients[i] = null;
             System.Threading.Tasks.Task.WhenAll(dig_tasks).Wait();
