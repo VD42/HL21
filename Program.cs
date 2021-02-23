@@ -205,30 +205,33 @@ namespace HL21
     {
         static void Main(string[] args)
         {
-            string host = System.Environment.GetEnvironmentVariable("ADDRESS");
-            int port = int.Parse(System.Environment.GetEnvironmentVariable("Port"));
-            string schema = System.Environment.GetEnvironmentVariable("Schema");
+            string host = System.Environment.GetEnvironmentVariable("ADDRESS") ?? "127.0.0.1";
+            int port = int.Parse(System.Environment.GetEnvironmentVariable("Port") ?? "8000");
+            string schema = System.Environment.GetEnvironmentVariable("Schema") ?? "http";
 
-            var clients = new System.Collections.Generic.List<Client>(100);
-            for (int i = 0; i < 100; ++i)
+            var max_clients = 50;
+            var max_dig_clients = 10;
+
+            var clients = new System.Collections.Generic.List<Client>(max_clients);
+            for (int i = 0; i < max_clients; ++i)
                 clients.Add(new Client(schema, host, port));
 
             var blocks = new System.Collections.Generic.List<Block>(10000);
 
             // Explore
             // 100x100 blocks, 35x35 size
-            // Each client tests 100 vertical blocks
+            // Each client tests 100 vertical blocks and 2 horizontal
             var explore_tasks = new System.Collections.Generic.List<System.Threading.Tasks.Task>(100);
             for (int i = 0; i < 100; ++i)
-                explore_tasks.Add(clients[i].explore_blocks(i * 35, blocks));
+                explore_tasks.Add(clients[i % max_clients].explore_blocks(i * 35, blocks));
             System.Threading.Tasks.Task.WhenAll(explore_tasks).Wait();
             blocks.Sort();
 
             // Digs
             // 10 connections on 10 free licenses
             var dig_tasks = new System.Collections.Generic.List<System.Threading.Tasks.Task>(10);
-            for (int i = 0; i < 100; ++i)
-                if (i < 10)
+            for (int i = 0; i < max_clients; ++i)
+                if (i < max_dig_clients)
                     dig_tasks.Add(clients[i].dig_blocks(blocks));
                 else
                     clients[i] = null;
