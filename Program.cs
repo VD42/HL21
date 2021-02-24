@@ -194,14 +194,29 @@ namespace HL21
             }
         }
 
-        public async System.Threading.Tasks.Task explore_blocks(int posX, System.Collections.Generic.List<Block> blocks)
+        public async System.Threading.Tasks.Task explore_blocks(int posX, System.Collections.Concurrent.ConcurrentQueue<Block> blocks)
         {
             for (int block = 0; block < 10; ++block)
             {
                 Block result = null;
                 while (result is null)
                     result = await post_explore(posX, block * 350, 35, 350);
-                blocks.Add(result);
+                blocks.Enqueue(result);
+            }
+        }
+
+        public async System.Threading.Tasks.Task explore_blocks(int posX, System.Collections.Concurrent.ConcurrentQueue<Block> vblocks, System.Collections.Concurrent.ConcurrentQueue<Block> hblocks)
+        {
+            for (int x = posX; x < posX + 350; ++x)
+            {
+                Block result = null;
+                while (result is null)
+                    result = await post_explore(posX, 0, 350, 3500);
+                vblocks.Enqueue(result);
+                result = null;
+                while (result is null)
+                    result = await post_explore(0, posX, 3500, 350);
+                hblocks.Enqueue(result);
             }
         }
 
@@ -331,14 +346,15 @@ namespace HL21
             // Explore
             // 100x100 blocks, 35x35 size
             // Each client tests 100 vertical blocks and 2 horizontal
-            /*var explore_tasks = new System.Collections.Generic.List<System.Threading.Tasks.Task>(100);
+            var explore_tasks = new System.Collections.Generic.List<System.Threading.Tasks.Task>(100);
             for (int i = 0; i < 100; ++i)
                 explore_tasks.Add(clients[i % max_clients].explore_blocks(i * 35, blocks));
             System.Threading.Tasks.Task.WhenAll(explore_tasks).Wait();
-            blocks.Sort();*/
 
-            for (int i = 0; i < 10; ++i)
-                blocks.Enqueue(new Block { posX = i * 350, posY = 0, sizeX = 350, sizeY = 3500, amount = 0 });
+            var blocks_to_sort = new System.Collections.Generic.List<Block>(blocks);
+            blocks_to_sort.Sort();
+
+            blocks = new System.Collections.Concurrent.ConcurrentQueue<Block>(blocks_to_sort);
 
             var coins = new System.Collections.Concurrent.ConcurrentBag<int>();
 
