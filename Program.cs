@@ -146,11 +146,11 @@ namespace HL21
 
         public async System.Threading.Tasks.Task explore_blocks(int posX, System.Collections.Generic.List<Block> blocks)
         {
-            for (int block = 0; block < 100; ++block)
+            for (int block = 0; block < 10; ++block)
             {
                 Block result = null;
                 while (result is null)
-                    result = await post_explore(posX, block * 35, 35, 35);
+                    result = await post_explore(posX, block * 350, 35, 350);
                 blocks.Add(result);
             }
         }
@@ -239,7 +239,7 @@ namespace HL21
             for (int i = 0; i < max_clients; ++i)
                 clients.Add(new Client(schema, host, port));
 
-            var blocks = new System.Collections.Generic.List<Block>(10000);
+            var blocks = new System.Collections.Generic.List<Block>(1000);
 
             // Explore
             // 100x100 blocks, 35x35 size
