@@ -205,7 +205,7 @@ namespace HL21
             }
         }
 
-        public async System.Threading.Tasks.Task dig_blocks(System.Collections.Concurrent.ConcurrentQueue<Block> blocks, System.Collections.Concurrent.ConcurrentQueue<int> coins)
+        public async System.Threading.Tasks.Task dig_blocks(System.Collections.Concurrent.ConcurrentQueue<Block> blocks, System.Collections.Concurrent.ConcurrentBag<int> coins)
         {
             while (true)
             {
@@ -227,7 +227,7 @@ namespace HL21
                             while (m_license is null || m_license.digAllowed <= m_license.digUsed)
                             {
                                 int coin;
-                                if (!coins.TryDequeue(out coin))
+                                if (!coins.TryTake(out coin))
                                     coin = -1;
                                 m_license = await post_license(coin);
                             }
@@ -247,7 +247,7 @@ namespace HL21
                                 while (money is null)
                                     money = await post_cash(treasure);
                                 foreach (var m in money)
-                                    coins.Enqueue(m);
+                                    coins.Add(m);
                             }
                             result.amount -= treasures.Count;
                         }
@@ -340,7 +340,7 @@ namespace HL21
             for (int i = 0; i < 10; ++i)
                 blocks.Enqueue(new Block { posX = i * 350, posY = 0, sizeX = 350, sizeY = 3500, amount = 0 });
 
-            var coins = new System.Collections.Concurrent.ConcurrentQueue<int>();
+            var coins = new System.Collections.Concurrent.ConcurrentBag<int>();
 
             // Digs
             // 10 connections on 10 free licenses
