@@ -2,10 +2,17 @@
 
 namespace HL21
 {
+    public class NowDateTime
+    {
+        public static string Prefix()
+        {
+            return System.DateTime.Now.ToString("[dd-MM-yyyy HH:mm:ss.fffffff] ");
+        }
+    }
+
     public class Client
     {
         private System.Net.Http.HttpClient m_http = new System.Net.Http.HttpClient();
-        private License m_license = null;
         private Stats m_stats;
 
         public Client(string schema, string host, int port, Stats stats)
@@ -16,11 +23,11 @@ namespace HL21
 
         ~Client()
         {
-            m_http = null;
         }
 
-        public async System.Threading.Tasks.Task<Block> post_explore(int posX, int posY, int sizeX, int sizeY)
+        public Block post_explore(int posX, int posY, int sizeX, int sizeY)
         {
+            var start_time = DateTime.Now;
             try
             {
                 var request_text_stream = new System.IO.MemoryStream();
@@ -35,17 +42,17 @@ namespace HL21
 
                 request_json_stream.Flush();
 
-                var request = new System.Net.Http.ByteArrayContent(request_text_stream.ToArray());
-                request.Headers.Add("Content-Type", "application/json");
+                request_text_stream.Position = 0;
+                var content = new System.Net.Http.StreamContent(request_text_stream);
+                content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+                var response = m_http.PostAsync("/explore", content).Result;
 
-                var response = await m_http.PostAsync("/explore", request);
-
-                m_stats.answer("/explore", response.StatusCode);
+                m_stats.answer("/explore (" + (sizeX * sizeY).ToString() + ")", response.StatusCode, DateTime.Now - start_time);
 
                 if (response.StatusCode != System.Net.HttpStatusCode.OK)
                     return null;
 
-                var json = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+                var json = System.Text.Json.JsonDocument.Parse(response.Content.ReadAsStringAsync().Result);
                 return new Block()
                 {
                     posX = json.RootElement.GetProperty("area").GetProperty("posX").GetInt32(),
@@ -55,16 +62,26 @@ namespace HL21
                     amount = json.RootElement.GetProperty("amount").GetInt32()
                 };
             }
+            catch (AggregateException ae)
+            {
+                m_stats.answer("/explore (" + (sizeX * sizeY).ToString() + ")", System.Net.HttpStatusCode.NoContent, DateTime.Now - start_time);
+                ae.Handle((ex) => {
+                    //Console.Error.WriteLine(NowDateTime.Prefix() + ex.GetType().Name + ": " + ex.Message);
+                    return true;
+                });
+                return null;
+            }
             catch (Exception ex)
             {
-                m_stats.answer("/explore", System.Net.HttpStatusCode.NoContent);
-                Console.Error.WriteLine("[" + System.DateTime.Now.ToString() + "] " + ex.GetType().Name + ": " + ex.Message);
+                m_stats.answer("/explore (" + (sizeX * sizeY).ToString() + ")", System.Net.HttpStatusCode.NoContent, DateTime.Now - start_time);
+                //Console.Error.WriteLine(NowDateTime.Prefix() + ex.GetType().Name + ": " + ex.Message);
                 return null;
             }
         }
 
-        public async System.Threading.Tasks.Task<License> post_license(int coin = -1)
+        public License post_license(int coin = -1)
         {
+            var start_time = DateTime.Now;
             try
             {
                 var request_text_stream = new System.IO.MemoryStream();
@@ -77,17 +94,17 @@ namespace HL21
 
                 request_json_stream.Flush();
 
-                var request = new System.Net.Http.ByteArrayContent(request_text_stream.ToArray());
-                request.Headers.Add("Content-Type", "application/json");
+                request_text_stream.Position = 0;
+                var content = new System.Net.Http.StreamContent(request_text_stream);
+                content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+                var response = m_http.PostAsync("/licenses", content).Result;
 
-                var response = await m_http.PostAsync("/licenses", request);
-
-                m_stats.answer("/licenses " + (coin == -1 ? "(free)" : "(paid)"), response.StatusCode);
+                m_stats.answer("/licenses " + (coin == -1 ? "(free)" : "(paid)"), response.StatusCode, DateTime.Now - start_time);
 
                 if (response.StatusCode != System.Net.HttpStatusCode.OK)
                     return null;
 
-                var json = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+                var json = System.Text.Json.JsonDocument.Parse(response.Content.ReadAsStringAsync().Result);
                 return new License()
                 {
                     id = json.RootElement.GetProperty("id").GetInt32(),
@@ -95,16 +112,26 @@ namespace HL21
                     digUsed = json.RootElement.GetProperty("digUsed").GetInt32()
                 };
             }
+            catch (AggregateException ae)
+            {
+                m_stats.answer("/licenses " + (coin == -1 ? "(free)" : "(paid)"), System.Net.HttpStatusCode.NoContent, DateTime.Now - start_time);
+                ae.Handle((ex) => {
+                    //Console.Error.WriteLine(NowDateTime.Prefix() + ex.GetType().Name + ": " + ex.Message);
+                    return true;
+                });
+                return null;
+            }
             catch (Exception ex)
             {
-                m_stats.answer("/licenses " + (coin == -1 ? "(free)" : "(paid)"), System.Net.HttpStatusCode.NoContent);
-                Console.Error.WriteLine("[" + System.DateTime.Now.ToString() + "] " + ex.GetType().Name + ": " + ex.Message);
+                m_stats.answer("/licenses " + (coin == -1 ? "(free)" : "(paid)"), System.Net.HttpStatusCode.NoContent, DateTime.Now - start_time);
+                //Console.Error.WriteLine(NowDateTime.Prefix() + ex.GetType().Name + ": " + ex.Message);
                 return null;
             }
         }
 
-        public async System.Threading.Tasks.Task<System.Collections.Generic.List<string>> post_dig(int licenseID, int posX, int posY, int depth)
+        public System.Collections.Generic.List<string> post_dig(int licenseID, int posX, int posY, int depth)
         {
+            var start_time = DateTime.Now;
             try
             {
                 var request_text_stream = new System.IO.MemoryStream();
@@ -119,12 +146,12 @@ namespace HL21
 
                 request_json_stream.Flush();
 
-                var request = new System.Net.Http.ByteArrayContent(request_text_stream.ToArray());
-                request.Headers.Add("Content-Type", "application/json");
+                request_text_stream.Position = 0;
+                var content = new System.Net.Http.StreamContent(request_text_stream);
+                content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+                var response = m_http.PostAsync("/dig", content).Result;
 
-                var response = await m_http.PostAsync("/dig", request);
-
-                m_stats.answer("/dig", response.StatusCode);
+                m_stats.answer("/dig", response.StatusCode, DateTime.Now - start_time);
 
                 if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
                     return new System.Collections.Generic.List<string>();
@@ -137,7 +164,7 @@ namespace HL21
                 if (response.StatusCode != System.Net.HttpStatusCode.OK)
                     return null;
 
-                var json = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+                var json = System.Text.Json.JsonDocument.Parse(response.Content.ReadAsStringAsync().Result);
 
                 var length = json.RootElement.GetArrayLength();
                 var treasures = new System.Collections.Generic.List<string>(length);
@@ -147,16 +174,26 @@ namespace HL21
 
                 return treasures;
             }
+            catch (AggregateException ae)
+            {
+                m_stats.answer("/dig", System.Net.HttpStatusCode.NoContent, DateTime.Now - start_time);
+                ae.Handle((ex) => {
+                    //Console.Error.WriteLine(NowDateTime.Prefix() + ex.GetType().Name + ": " + ex.Message);
+                    return true;
+                });
+                return null;
+            }
             catch (Exception ex)
             {
-                m_stats.answer("/dig", System.Net.HttpStatusCode.NoContent);
-                Console.Error.WriteLine("[" + System.DateTime.Now.ToString() + "] " + ex.GetType().Name + ": " + ex.Message);
+                m_stats.answer("/dig", System.Net.HttpStatusCode.NoContent, DateTime.Now - start_time);
+                //Console.Error.WriteLine(NowDateTime.Prefix() + ex.GetType().Name + ": " + ex.Message);
                 return null;
             }
         }
 
-        public async System.Threading.Tasks.Task<System.Collections.Generic.List<int>> post_cash(string treasure)
+        public System.Collections.Generic.List<int> post_cash(string treasure)
         {
+            var start_time = DateTime.Now;
             try
             {
                 var request_text_stream = new System.IO.MemoryStream();
@@ -166,17 +203,17 @@ namespace HL21
 
                 request_json_stream.Flush();
 
-                var request = new System.Net.Http.ByteArrayContent(request_text_stream.ToArray());
-                request.Headers.Add("Content-Type", "application/json");
+                request_text_stream.Position = 0;
+                var content = new System.Net.Http.StreamContent(request_text_stream);
+                content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+                var response = m_http.PostAsync("/cash", content).Result;
 
-                var response = await m_http.PostAsync("/cash", request);
-
-                m_stats.answer("/cash", response.StatusCode);
+                m_stats.answer("/cash", response.StatusCode, DateTime.Now - start_time);
 
                 if (response.StatusCode != System.Net.HttpStatusCode.OK)
                     return null;
 
-                var json = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+                var json = System.Text.Json.JsonDocument.Parse(response.Content.ReadAsStringAsync().Result);
 
                 var length = json.RootElement.GetArrayLength();
                 var money = new System.Collections.Generic.List<int>(length);
@@ -186,87 +223,205 @@ namespace HL21
 
                 return money;
             }
+            catch (AggregateException ae)
+            {
+                m_stats.answer("/cash", System.Net.HttpStatusCode.NoContent, DateTime.Now - start_time);
+                ae.Handle((ex) => {
+                    //Console.Error.WriteLine(NowDateTime.Prefix() + ex.GetType().Name + ": " + ex.Message);
+                    return true;
+                });
+                return null;
+            }
             catch (Exception ex)
             {
-                m_stats.answer("/cash", System.Net.HttpStatusCode.NoContent);
-                Console.Error.WriteLine("[" + System.DateTime.Now.ToString() + "] " + ex.GetType().Name + ": " + ex.Message);
+                m_stats.answer("/cash", System.Net.HttpStatusCode.NoContent, DateTime.Now - start_time);
+                //Console.Error.WriteLine(NowDateTime.Prefix() + ex.GetType().Name + ": " + ex.Message);
                 return null;
             }
         }
 
-        public async System.Threading.Tasks.Task explore_blocks(int posX, System.Collections.Concurrent.ConcurrentQueue<Block> blocks)
+        public void explore_big_blocks(System.Threading.Mutex big_blocks_mutex, System.Collections.Generic.List<Block> big_blocks, int i, int count)
         {
-            for (int block = 0; block < 10; ++block)
+            for (int x = i * 10; x < 3500; x += 10 * count)
             {
-                Block result = null;
-                while (result is null)
-                    result = await post_explore(posX, block * 350, 35, 350);
-                blocks.Enqueue(result);
+                for (int y = 0; y < 3500; y += 10)
+                {
+                    Block block = null;
+                    while (block is null)
+                        block = post_explore(x, y, 10, 10);
+                    if (0 < block.amount)
+                    {
+                        lock (big_blocks_mutex)
+                        {
+                            big_blocks.Add(block);
+                            big_blocks.Sort();
+                        }
+                    }
+                }
             }
         }
 
-        public async System.Threading.Tasks.Task explore_blocks(int posX, System.Collections.Concurrent.ConcurrentQueue<Block> vblocks, System.Collections.Concurrent.ConcurrentQueue<Block> hblocks)
-        {
-            for (int x = posX; x < posX + 350; ++x)
-            {
-                Block result = null;
-                while (result is null)
-                    result = await post_explore(posX, 0, 350, 3500);
-                vblocks.Enqueue(result);
-                result = null;
-                while (result is null)
-                    result = await post_explore(0, posX, 3500, 350);
-                hblocks.Enqueue(result);
-            }
-        }
-
-        public async System.Threading.Tasks.Task dig_blocks(System.Collections.Concurrent.ConcurrentQueue<Block> blocks, System.Collections.Concurrent.ConcurrentBag<int> coins)
+        public void explore_blocks(System.Threading.Mutex big_blocks_mutex, System.Collections.Generic.List<Block> big_blocks, System.Threading.Mutex blocks_mutex, System.Collections.Generic.List<Block> blocks)
         {
             while (true)
             {
-                Block block;
-                if (!blocks.TryDequeue(out block))
+                Block block = null;
+                lock (big_blocks_mutex)
                 {
-                    await System.Threading.Tasks.Task.Delay(0);
+                    if (0 < big_blocks.Count)
+                    {
+                        block = big_blocks[big_blocks.Count - 1];
+                        big_blocks.RemoveAt(big_blocks.Count - 1);
+                    }
+                }
+                if (block == null)
+                {
+                    System.Threading.Thread.Sleep(1);
                     continue;
                 }
 
-                for (int x = block.posX; x < block.posX + block.sizeX; ++x)
-                    for (int y = block.posY; y < block.posY + block.sizeY; ++y)
+                for (int by = block.posY; by < block.posY + 10 && 0 < block.amount; ++by)
+                {
+                    Block line = null;
+                    if (by == block.posY + 10 - 1)
+                    {
+                        line = new Block() { posX = block.posX, posY = by, sizeX = 10, sizeY = 1, amount = block.amount };
+                    }
+                    else
+                    {
+                        while (line is null)
+                            line = post_explore(block.posX, by, 10, 1);
+                    }
+                    if (0 < line.amount)
+                    {
+                        lock (blocks_mutex)
+                        {
+                            blocks.Add(line);
+                            blocks.Sort();
+                        }
+                        block.amount -= line.amount;
+                    }
+                }
+            }
+
+            /*for (int y = 0; y < 3500; ++y)
+            {
+                for (int x = 0; x < 3500; x += 10)
+                {
+                    Block line = null;
+                    while (line is null)
+                        line = post_explore(x, y, 10, 1);
+                    if (0 < line.amount)
+                    {
+                        lock (blocks_mutex)
+                        {
+                            blocks.Add(line);
+                            blocks.Sort();
+                        }
+                    }
+                }
+            }*/
+        }
+
+        public void dig_blocks(System.Threading.Mutex blocks_mutex, System.Collections.Generic.List<Block> blocks, LicenseManager lm, System.Threading.Mutex treasures_mutex, System.Collections.Generic.List<Treasure> treasures)
+        {
+            while (true)
+            {
+                Block block = null;
+                lock (blocks_mutex)
+                {
+                    if (0 < blocks.Count)
+                    {
+                        block = blocks[blocks.Count - 1];
+                        blocks.RemoveAt(blocks.Count - 1);
+                    }
+                }
+                if (block == null)
+                {
+                    System.Threading.Thread.Sleep(1);
+                    continue;
+                }
+
+                /*for (int y = block.posY; y < block.posY + 10 && 0 < block.amount; ++y)
+                {
+                    Block line = null;
+                    while (line is null)
+                        line = post_explore(block.posX, y, 10, 1);*/
+
+                    for (int x = block.posX; x < block.posX + block.sizeX && 0 < block.amount; ++x)
                     {
                         Block result = null;
-                        while (result is null)
-                            result = await post_explore(x, y, 1, 1);
+                        if (x == block.posX + block.sizeX - 1)
+                        {
+                            result = new Block() { posX = x, posY = block.posY, sizeX = 1, sizeY = 1, amount = block.amount };
+                        }
+                        else
+                        {
+                            while (result is null)
+                                result = post_explore(x, block.posY, 1, 1);
+                        }
+
                         for (int h = 0; h < 10 && 0 < result.amount; ++h)
                         {
-                            while (m_license is null || m_license.digAllowed <= m_license.digUsed)
+                            int? license_id = null;
+                            while (license_id is null)
+                                license_id = lm.get_license();
+                            System.Collections.Generic.List<string> surprise = null;
+                            while (surprise is null)
+                                surprise = post_dig(license_id.Value, x, block.posY, h + 1);
+                            lm.use_license(license_id.Value);
+                            if (surprise.Count == 1 && surprise[0] == "i_need_license!!!")
                             {
-                                int coin;
-                                if (!coins.TryTake(out coin))
-                                    coin = -1;
-                                m_license = await post_license(coin);
-                            }
-                            System.Collections.Generic.List<string> treasures = null;
-                            while (treasures is null)
-                                treasures = await post_dig(m_license.id, x, y, h + 1);
-                            ++m_license.digUsed;
-                            if (treasures.Count == 1 && treasures[0] == "i_need_license!!!")
-                            {
-                                m_license = null;
                                 --h;
                                 continue;
                             }
-                            foreach (var treasure in treasures)
+                            lock (treasures_mutex)
                             {
-                                System.Collections.Generic.List<int> money = null;
-                                while (money is null)
-                                    money = await post_cash(treasure);
-                                foreach (var m in money)
-                                    coins.Add(m);
+                                foreach (var treasure in surprise)
+                                    treasures.Add(new Treasure() { id = treasure, depth = h });
+                                treasures.Sort();
                             }
                             result.amount -= treasures.Count;
+                            //line.amount -= treasures.Count;
+                            block.amount -= treasures.Count;
                         }
                     }
+                //}
+            }
+        }
+
+        public void cash_treasures(System.Threading.Mutex treasures_mutex, System.Collections.Generic.List<Treasure> treasures, System.Collections.Concurrent.ConcurrentBag<int> coins)
+        {
+            while (true)
+            {
+                Treasure treasure = null;
+                lock (treasures_mutex)
+                {
+                    if (0 < treasures.Count)
+                    {
+                        treasure = treasures[treasures.Count - 1];
+                        treasures.RemoveAt(treasures.Count - 1);
+                    }
+                }
+                if (treasure == null)
+                {
+                    System.Threading.Thread.Sleep(1);
+                    continue;
+                }
+
+                System.Collections.Generic.List<int> money = null;
+                while (money is null)
+                    money = post_cash(treasure.id);
+                foreach (var m in money)
+                    coins.Add(m);
+            }
+        }
+
+        public void manage_licenses(LicenseManager lm)
+        {
+            while (true)
+            {
+                lm.update_licenses(this);
             }
         }
     }
@@ -281,45 +436,163 @@ namespace HL21
 
         public int CompareTo(object obj)
         {
-            return (obj as Block).amount.CompareTo(amount);
+            return amount.CompareTo((obj as Block).amount);
         }
     }
 
-    public class License
+    public class License : IComparable
     {
         public int id;
         public int digAllowed;
         public int digUsed;
+
+        public int digUsing;
+
+        public int CompareTo(object obj)
+        {
+            return (digAllowed - digUsing).CompareTo((obj as License).digAllowed - (obj as License).digUsing);
+        }
+    }
+
+    public class Treasure : IComparable
+    {
+        public string id;
+        public int depth;
+
+        public int CompareTo(object obj)
+        {
+            return depth.CompareTo((obj as Treasure).depth);
+        }
+    }
+
+    public class AnswerInfo
+    {
+        public int count = 0;
+        public TimeSpan time = new TimeSpan();
     }
 
     public class Stats
     {
-        private System.Collections.Concurrent.ConcurrentDictionary<string, System.Collections.Concurrent.ConcurrentDictionary<System.Net.HttpStatusCode, int>> m_answers;
+        private int m_total = 0;
+        private System.Collections.Concurrent.ConcurrentDictionary<string, System.Collections.Concurrent.ConcurrentDictionary<System.Net.HttpStatusCode, AnswerInfo>> m_answers;
+        public bool m_verbose = false;
 
         public Stats()
         {
-            m_answers = new System.Collections.Concurrent.ConcurrentDictionary<string, System.Collections.Concurrent.ConcurrentDictionary<System.Net.HttpStatusCode, int>>();
+            Console.Error.WriteLine(NowDateTime.Prefix() + "Start");
+            m_answers = new System.Collections.Concurrent.ConcurrentDictionary<string, System.Collections.Concurrent.ConcurrentDictionary<System.Net.HttpStatusCode, AnswerInfo>>();
         }
 
-        public void answer(string method, System.Net.HttpStatusCode status)
+        public void answer(string method, System.Net.HttpStatusCode status, TimeSpan ts)
         {
-            m_answers.TryAdd(method, new System.Collections.Concurrent.ConcurrentDictionary<System.Net.HttpStatusCode, int>());
-            m_answers[method].TryAdd(status, 0);
-            ++m_answers[method][status];
+            ++m_total;
+
+            m_answers.TryAdd(method, new System.Collections.Concurrent.ConcurrentDictionary<System.Net.HttpStatusCode, AnswerInfo>());
+            m_answers[method].TryAdd(status, new AnswerInfo());
+            ++m_answers[method][status].count;
+            m_answers[method][status].time += ts;
+
+            if (m_verbose)
+                Console.Error.WriteLine(NowDateTime.Prefix() + method + " " + status.ToString());
         }
 
-        public async System.Threading.Tasks.Task stats()
+        public void print()
+        {
+            Console.Error.WriteLine(NowDateTime.Prefix() + "Stats:");
+            foreach (var answer in m_answers)
+            {
+                Console.Error.WriteLine("    " + answer.Key);
+                foreach (var status in answer.Value)
+                    Console.Error.WriteLine("        " + status.Key.ToString() + ": " + status.Value.count.ToString() + " (" + (status.Value.time.TotalMilliseconds / (0 < status.Value.count ? status.Value.count : 1)).ToString() + ")");
+            }
+            Console.Error.WriteLine("    TOTAL: " + m_total.ToString());
+        }
+
+        public void stats()
         {
             while (true)
             {
-                await System.Threading.Tasks.Task.Delay(10000);
-                Console.Error.WriteLine("Stats on " + System.DateTime.Now.ToString() + ":");
-                foreach (var answer in m_answers)
-                {
-                    Console.Error.WriteLine("    " + answer.Key);
-                    foreach (var status in answer.Value)
-                        Console.Error.WriteLine("        " + status.Key.ToString() + ": " + status.Value.ToString());
-                }
+                System.Threading.Thread.Sleep(10000);
+                print();
+            }
+        }
+    }
+
+    public class LicenseManager
+    {
+        private System.Collections.Generic.List<License> m_licenses = new System.Collections.Generic.List<License>();
+        private System.Threading.Mutex m_mutex = new System.Threading.Mutex();
+        private System.Collections.Concurrent.ConcurrentBag<int> m_coins;
+
+        public LicenseManager(System.Collections.Concurrent.ConcurrentBag<int> coins)
+        {
+            m_coins = coins;
+        }
+
+        public int? get_license()
+        {
+            lock (m_mutex)
+            {
+                m_licenses.Sort();
+                for (int i = m_licenses.Count - 1; 0 <= i; --i)
+                    if (m_licenses[i] != null && m_licenses[i].digUsing < m_licenses[i].digAllowed)
+                    {
+                        ++m_licenses[i].digUsing;
+                        return m_licenses[i].id;
+                    }
+                return null;
+            }
+        }
+
+        public void use_license(int id)
+        {
+            lock (m_mutex)
+            {
+                for (int i = 0; i < m_licenses.Count; ++i)
+                    if (m_licenses[i] != null && m_licenses[i].id == id)
+                    {
+                        if (m_licenses[i].digAllowed <= (++m_licenses[i].digUsed))
+                            m_licenses.RemoveAt(i);
+                        break;
+                    }
+            }
+        }
+
+        public void update_licenses(Client client)
+        {
+            bool working = false;
+
+            lock (m_mutex)
+            {
+                working = (m_licenses.Count < 10);
+                if (working)
+                    m_licenses.Add(null);
+            }
+
+            if (!working)
+            {
+                System.Threading.Thread.Sleep(1);
+                return;
+            }
+
+            License license = null;
+            while (license is null)
+            {
+                int coin;
+                if (!m_coins.TryTake(out coin))
+                    coin = -1;
+                license = client.post_license(coin);
+            }
+
+            lock (m_mutex)
+            {
+                for (int i = 0; i < m_licenses.Count; ++i)
+                    if (m_licenses[i] is null)
+                    {
+                        m_licenses.RemoveAt(i);
+                        break;
+                    }
+                m_licenses.Add(license);
             }
         }
     }
@@ -328,46 +601,80 @@ namespace HL21
     {
         static void Main(string[] args)
         {
+            System.Net.ServicePointManager.DefaultConnectionLimit = 65536;
+
+            var stats = new Stats();
+
             string host = System.Environment.GetEnvironmentVariable("ADDRESS") ?? "127.0.0.1";
             int port = int.Parse(System.Environment.GetEnvironmentVariable("Port") ?? "8000");
             string schema = System.Environment.GetEnvironmentVariable("Schema") ?? "http";
 
-            var max_clients = 10;
-            var max_dig_clients = 10;
+            var big_blocks_mutex = new System.Threading.Mutex();
+            var blocks_mutex = new System.Threading.Mutex();
+            var treasures_mutex = new System.Threading.Mutex();
 
-            var stats = new Stats();
-
-            var clients = new System.Collections.Generic.List<Client>(max_clients);
-            for (int i = 0; i < max_clients; ++i)
-                clients.Add(new Client(schema, host, port, stats));
-
-            var blocks = new System.Collections.Concurrent.ConcurrentQueue<Block>();
-
-            // Explore
-            // 100x100 blocks, 35x35 size
-            // Each client tests 100 vertical blocks and 2 horizontal
-            var explore_tasks = new System.Collections.Generic.List<System.Threading.Tasks.Task>(100);
-            for (int i = 0; i < 100; ++i)
-                explore_tasks.Add(clients[i % max_clients].explore_blocks(i * 35, blocks));
-            System.Threading.Tasks.Task.WhenAll(explore_tasks).Wait();
-
-            var blocks_to_sort = new System.Collections.Generic.List<Block>(blocks);
-            blocks_to_sort.Sort();
-
-            blocks = new System.Collections.Concurrent.ConcurrentQueue<Block>(blocks_to_sort);
-
+            var big_blocks = new System.Collections.Generic.List<Block>();
+            var blocks = new System.Collections.Generic.List<Block>();
+            var treasures = new System.Collections.Generic.List<Treasure>();
             var coins = new System.Collections.Concurrent.ConcurrentBag<int>();
 
-            // Digs
-            // 10 connections on 10 free licenses
-            var dig_tasks = new System.Collections.Generic.List<System.Threading.Tasks.Task>(11);
-            for (int i = 0; i < max_clients; ++i)
-                if (i < max_dig_clients)
-                    dig_tasks.Add(clients[i].dig_blocks(blocks, coins));
-                else
-                    clients[i] = null;
-            dig_tasks.Add(stats.stats());
-            System.Threading.Tasks.Task.WhenAll(dig_tasks).Wait();
+            var lm = new LicenseManager(coins);
+
+            var threads = new System.Collections.Generic.List<System.Threading.Thread>(10);
+
+            for (int i = 0; i < 6; ++i)
+            {
+                var client = new Client(schema, host, port, stats);
+                threads.Add(new System.Threading.Thread(() =>
+                {
+                    client.manage_licenses(lm);
+                }));
+                threads[threads.Count - 1].Start();
+            }
+
+            for (int i = 0; i < 1; ++i)
+            {
+                var index = i;
+                var client = new Client(schema, host, port, stats);
+                threads.Add(new System.Threading.Thread(() =>
+                {
+                    client.explore_big_blocks(big_blocks_mutex, big_blocks, index, 1);
+                }));
+                threads[threads.Count - 1].Start();
+            }
+
+            for (int i = 0; i < 1; ++i)
+            {
+                var client = new Client(schema, host, port, stats);
+                threads.Add(new System.Threading.Thread(() =>
+                {
+                    client.explore_blocks(big_blocks_mutex, big_blocks, blocks_mutex, blocks);
+                }));
+                threads[threads.Count - 1].Start();
+            }
+
+            for (int i = 0; i < 40; ++i)
+            {
+                var client = new Client(schema, host, port, stats);
+                threads.Add(new System.Threading.Thread(() =>
+                {
+                    client.cash_treasures(treasures_mutex, treasures, coins);
+                }));
+                threads[threads.Count - 1].Priority = System.Threading.ThreadPriority.Highest;
+                threads[threads.Count - 1].Start();
+            }
+
+            for (int i = 0; i < 10; ++i)
+            {
+                var client = new Client(schema, host, port, stats);
+                threads.Add(new System.Threading.Thread(() =>
+                {
+                    client.dig_blocks(blocks_mutex, blocks, lm, treasures_mutex, treasures);
+                }));
+                threads[threads.Count - 1].Start();
+            }
+
+            stats.stats();
         }
     }
 }
