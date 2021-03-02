@@ -424,6 +424,166 @@ namespace HL21
                 lm.update_licenses(this);
             }
         }
+
+        public void work(
+            int index, int count,
+            System.Threading.Mutex big_blocks_mutex, System.Collections.Generic.List<Block> big_blocks,
+            System.Threading.Mutex blocks_mutex, System.Collections.Generic.List<Block> blocks,
+            LicenseManager lm,
+            System.Threading.Mutex treasures_mutex, System.Collections.Generic.List<Treasure> treasures,
+            System.Collections.Concurrent.ConcurrentBag<int> coins
+        )
+        {
+            int current_big_block_x = 0;
+            int current_big_block_y = index;
+
+            while (true)
+            {
+                // Treasures
+
+                bool found_treasure = false;
+                {
+                    Treasure treasure = null;
+                    lock (treasures_mutex)
+                    {
+                        if (0 < treasures.Count)
+                        {
+                            treasure = treasures[treasures.Count - 1];
+                            treasures.RemoveAt(treasures.Count - 1);
+                        }
+                    }
+                    if (treasure != null)
+                    {
+                        System.Collections.Generic.List<int> money = null;
+                        while (money is null)
+                            money = post_cash(treasure.id);
+                        foreach (var m in money)
+                            coins.Add(m);
+                        found_treasure = true;
+                    }
+                }
+                if (found_treasure)
+                    continue;
+
+                // Licenses
+
+                if (lm.update_licenses(this))
+                    continue;
+
+                // Digs
+
+                bool found_block = false;
+                {
+                    Block block = null;
+                    lock (blocks_mutex)
+                    {
+                        if (0 < blocks.Count)
+                        {
+                            block = blocks[blocks.Count - 1];
+                            blocks.RemoveAt(blocks.Count - 1);
+                        }
+                    }
+                    if (block != null)
+                    {
+                        for (int h = 0; h < 10 && 0 < block.amount; ++h)
+                        {
+                            int? license_id = null;
+                            while (license_id is null)
+                            {
+                                license_id = lm.get_license();
+                                if (license_id is null)
+                                    lm.update_licenses(this);
+                            }
+                            System.Collections.Generic.List<string> surprise = null;
+                            while (surprise is null)
+                                surprise = post_dig(license_id.Value, block.posX, block.posY, h + 1);
+                            lm.use_license(license_id.Value);
+                            if (surprise.Count == 1 && surprise[0] == "i_need_license!!!")
+                            {
+                                --h;
+                                continue;
+                            }
+                            lock (treasures_mutex)
+                            {
+                                foreach (var treasure in surprise)
+                                    treasures.Add(new Treasure() { id = treasure, depth = h });
+                                treasures.Sort();
+                            }
+                            block.amount -= treasures.Count;
+                        }
+                        found_block = true;
+                    }
+                }
+                if (found_block)
+                    continue;
+
+                // Small blocks
+
+                bool found_big_block = false;
+                {
+                    Block big_block = null;
+                    lock (big_blocks_mutex)
+                    {
+                        if (0 < big_blocks.Count)
+                        {
+                            big_block = big_blocks[big_blocks.Count - 1];
+                            big_blocks.RemoveAt(big_blocks.Count - 1);
+                        }
+                    }
+                    if (big_block != null)
+                    {
+                        for (int x = big_block.posX; x < big_block.posX + big_block.sizeX && 0 < big_block.amount; ++x)
+                        {
+                            Block result = null;
+                            if (x == big_block.posX + big_block.sizeX - 1)
+                            {
+                                result = new Block() { posX = x, posY = big_block.posY, sizeX = 1, sizeY = 1, amount = big_block.amount };
+                            }
+                            else
+                            {
+                                while (result is null)
+                                    result = post_explore(x, big_block.posY, 1, 1);
+                            }
+                            if (0 < result.amount)
+                            {
+                                lock (blocks_mutex)
+                                {
+                                    blocks.Add(result);
+                                    blocks.Sort();
+                                }
+                                big_block.amount -= result.amount;
+                            }
+                        }
+                        found_big_block = true;
+                    }
+                }
+                if (found_big_block)
+                    continue;
+
+                // Big blocks
+
+                if (current_big_block_x < 3500 && current_big_block_y < 3500)
+                {
+                    Block block = null;
+                    while (block is null)
+                        block = post_explore(current_big_block_x, current_big_block_y, 10, 1);
+                    if (0 < block.amount)
+                    {
+                        lock (big_blocks_mutex)
+                        {
+                            big_blocks.Add(block);
+                            big_blocks.Sort();
+                        }
+                    }
+                    current_big_block_y += count;
+                    if (3500 <= current_big_block_y)
+                    {
+                        current_big_block_x += 10;
+                        current_big_block_y = index;
+                    }
+                }
+            }
+        }
     }
 
     public class Block : IComparable
@@ -558,7 +718,7 @@ namespace HL21
             }
         }
 
-        public void update_licenses(Client client)
+        public bool update_licenses(Client client)
         {
             bool working = false;
 
@@ -571,8 +731,8 @@ namespace HL21
 
             if (!working)
             {
-                System.Threading.Thread.Sleep(1);
-                return;
+                //System.Threading.Thread.Sleep(1);
+                return false;
             }
 
             License license = null;
@@ -594,6 +754,8 @@ namespace HL21
                     }
                 m_licenses.Add(license);
             }
+
+            return true;
         }
     }
 
@@ -620,9 +782,29 @@ namespace HL21
 
             var lm = new LicenseManager(coins);
 
-            var threads = new System.Collections.Generic.List<System.Threading.Thread>(10);
+            var max_threads = 20;
 
-            for (int i = 0; i < 6; ++i)
+            var threads = new System.Collections.Generic.List<System.Threading.Thread>(max_threads);
+
+            for (int i = 0; i < max_threads; ++i)
+            {
+                var index = i;
+                var client = new Client(schema, host, port, stats);
+                threads.Add(new System.Threading.Thread(() =>
+                {
+                    client.work(
+                        index, max_threads,
+                        big_blocks_mutex, big_blocks,
+                        blocks_mutex, blocks,
+                        lm,
+                        treasures_mutex, treasures,
+                        coins
+                    );
+                }));
+                threads[threads.Count - 1].Start();
+            }
+
+            /*for (int i = 0; i < 6; ++i)
             {
                 var client = new Client(schema, host, port, stats);
                 threads.Add(new System.Threading.Thread(() =>
@@ -672,7 +854,7 @@ namespace HL21
                     client.dig_blocks(blocks_mutex, blocks, lm, treasures_mutex, treasures);
                 }));
                 threads[threads.Count - 1].Start();
-            }
+            }*/
 
             stats.stats();
         }
