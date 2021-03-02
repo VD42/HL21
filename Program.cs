@@ -485,14 +485,18 @@ namespace HL21
                     }
                     if (block != null)
                     {
-                        for (int h = 0; h < 10 && 0 < block.amount; ++h)
+                        for (int h = block.last_h; h < 10 && 0 < block.amount; ++h)
                         {
-                            int? license_id = null;
-                            while (license_id is null)
+                            block.last_h = h;
+                            var license_id = lm.get_license();
+                            if (license_id == null)
                             {
-                                license_id = lm.get_license();
-                                if (license_id is null)
-                                    lm.update_licenses(this);
+                                lock (blocks_mutex)
+                                {
+                                    blocks.Add(block);
+                                    blocks.Sort();
+                                }
+                                break;
                             }
                             System.Collections.Generic.List<string> surprise = null;
                             while (surprise is null)
@@ -500,8 +504,12 @@ namespace HL21
                             lm.use_license(license_id.Value);
                             if (surprise.Count == 1 && surprise[0] == "i_need_license!!!")
                             {
-                                --h;
-                                continue;
+                                lock (blocks_mutex)
+                                {
+                                    blocks.Add(block);
+                                    blocks.Sort();
+                                }
+                                break;
                             }
                             lock (treasures_mutex)
                             {
@@ -593,10 +601,14 @@ namespace HL21
         public int sizeX;
         public int sizeY;
         public int amount;
+        public int last_h = 0;
 
         public int CompareTo(object obj)
         {
-            return amount.CompareTo((obj as Block).amount);
+            var amount_compare = amount.CompareTo((obj as Block).amount);
+            if (amount_compare == 0)
+                return last_h.CompareTo((obj as Block).last_h);
+            return amount_compare;
         }
     }
 
