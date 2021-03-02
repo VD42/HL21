@@ -525,6 +525,9 @@ namespace HL21
                 if (found_block)
                     continue;
 
+                if (index < 25)
+                    continue;
+
                 // Small blocks
 
                 bool found_big_block = false;
