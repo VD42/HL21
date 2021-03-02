@@ -566,7 +566,7 @@ namespace HL21
                 {
                     Block block = null;
                     while (block is null)
-                        block = post_explore(current_big_block_x, current_big_block_y, 10, 1);
+                        block = post_explore(current_big_block_x, current_big_block_y, 14, 1);
                     if (0 < block.amount)
                     {
                         lock (big_blocks_mutex)
@@ -578,7 +578,7 @@ namespace HL21
                     current_big_block_y += count;
                     if (3500 <= current_big_block_y)
                     {
-                        current_big_block_x += 10;
+                        current_big_block_x += 14;
                         current_big_block_y = index;
                     }
                 }
@@ -782,7 +782,7 @@ namespace HL21
 
             var lm = new LicenseManager(coins);
 
-            var max_threads = 20;
+            var max_threads = 50;
 
             var threads = new System.Collections.Generic.List<System.Threading.Thread>(max_threads);
 
