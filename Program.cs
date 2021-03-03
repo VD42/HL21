@@ -625,7 +625,7 @@ namespace HL21
 
         public int CompareTo(object obj)
         {
-            return (digAllowed - digUsing).CompareTo((obj as License).digAllowed - (obj as License).digUsing);
+            return -(digAllowed - digUsing).CompareTo((obj as License).digAllowed - (obj as License).digUsing);
         }
     }
 
@@ -739,7 +739,7 @@ namespace HL21
 
             lock (m_mutex)
             {
-                working = (m_licenses.Count < 10);
+                working = (m_licenses.Count < Math.Max(Math.Min(m_coins.Count, 10), 2));
                 if (working)
                     m_licenses.Add(null);
             }
