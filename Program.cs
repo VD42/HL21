@@ -1,4 +1,6 @@
-﻿using System;
+﻿#define _DEBUG
+
+using System;
 
 namespace HL21
 {
@@ -734,12 +736,15 @@ namespace HL21
 
         public Stats()
         {
+#if _DEBUG
             Console.Error.WriteLine(NowDateTime.Prefix() + "Start");
             m_answers = new System.Collections.Concurrent.ConcurrentDictionary<string, System.Collections.Concurrent.ConcurrentDictionary<System.Net.HttpStatusCode, AnswerInfo>>();
+#endif
         }
 
         public void answer(string method, System.Net.HttpStatusCode status, TimeSpan ts)
         {
+#if _DEBUG
             ++m_total;
 
             m_answers.TryAdd(method, new System.Collections.Concurrent.ConcurrentDictionary<System.Net.HttpStatusCode, AnswerInfo>());
@@ -749,10 +754,12 @@ namespace HL21
 
             if (m_verbose)
                 Console.Error.WriteLine(NowDateTime.Prefix() + method + " " + status.ToString());
+#endif
         }
 
         public void print()
         {
+#if _DEBUG
             Console.Error.WriteLine(NowDateTime.Prefix() + "Stats:");
             var total_time = new TimeSpan();
             foreach (var answer in m_answers)
@@ -765,15 +772,18 @@ namespace HL21
                 }
             }
             Console.Error.WriteLine("    TOTAL: " + m_total.ToString() + " (" + total_time.TotalMilliseconds.ToString() + ")");
+#endif
         }
 
         public void stats()
         {
+#if _DEBUG
             while (true)
             {
                 System.Threading.Thread.Sleep(10000);
                 print();
             }
+#endif
         }
     }
 
