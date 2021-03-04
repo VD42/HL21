@@ -49,13 +49,14 @@ namespace HL21
                 content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
                 var response = m_http.PostAsync("/explore", content).Result;
 
-                m_stats.answer("/explore (" + (sizeX * sizeY).ToString() + ")", response.StatusCode, DateTime.Now - start_time);
+                if (response.StatusCode != System.Net.HttpStatusCode.OK || sizeX * sizeY != 1)
+                    m_stats.answer("/explore (" + (sizeX * sizeY).ToString() + ")", response.StatusCode, DateTime.Now - start_time);
 
                 if (response.StatusCode != System.Net.HttpStatusCode.OK)
                     return null;
 
                 var json = System.Text.Json.JsonDocument.Parse(response.Content.ReadAsStringAsync().Result);
-                return new Block()
+                var block = new Block()
                 {
                     posX = json.RootElement.GetProperty("area").GetProperty("posX").GetInt32(),
                     posY = json.RootElement.GetProperty("area").GetProperty("posY").GetInt32(),
@@ -63,6 +64,11 @@ namespace HL21
                     sizeY = json.RootElement.GetProperty("area").GetProperty("sizeY").GetInt32(),
                     amount = json.RootElement.GetProperty("amount").GetInt32()
                 };
+
+                if (sizeX * sizeY == 1)
+                    m_stats.answer("/explore (" + (sizeX * sizeY).ToString() + ", " + block.amount.ToString() + ")", response.StatusCode, DateTime.Now - start_time);
+
+                return block;
             }
             catch (AggregateException ae)
             {
@@ -128,6 +134,43 @@ namespace HL21
                 m_stats.answer("/licenses " + (coin == -1 ? "(free)" : "(paid)"), System.Net.HttpStatusCode.NoContent, DateTime.Now - start_time);
                 //Console.Error.WriteLine(NowDateTime.Prefix() + ex.GetType().Name + ": " + ex.Message);
                 return null;
+            }
+        }
+
+        public void fast_post_license(int coin = -1)
+        {
+            var start_time = DateTime.Now;
+            try
+            {
+                var request_text_stream = new System.IO.MemoryStream();
+                var request_json_stream = new System.Text.Json.Utf8JsonWriter(request_text_stream);
+
+                request_json_stream.WriteStartArray();
+                if (coin != -1)
+                    request_json_stream.WriteNumberValue(coin);
+                request_json_stream.WriteEndArray();
+
+                request_json_stream.Flush();
+
+                request_text_stream.Position = 0;
+                var content = new System.Net.Http.StreamContent(request_text_stream);
+                content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+                m_http.PostAsync("/licenses", content).Wait(1);
+
+                m_stats.answer("/licenses " + (coin == -1 ? "(free, fast)" : "(paid, fast)"), System.Net.HttpStatusCode.Accepted, DateTime.Now - start_time);
+            }
+            catch (AggregateException ae)
+            {
+                m_stats.answer("/licenses " + (coin == -1 ? "(free, fast)" : "(paid, fast)"), System.Net.HttpStatusCode.NoContent, DateTime.Now - start_time);
+                ae.Handle((ex) => {
+                    //Console.Error.WriteLine(NowDateTime.Prefix() + ex.GetType().Name + ": " + ex.Message);
+                    return true;
+                });
+            }
+            catch (Exception ex)
+            {
+                m_stats.answer("/licenses " + (coin == -1 ? "(free, fast)" : "(paid, fast)"), System.Net.HttpStatusCode.NoContent, DateTime.Now - start_time);
+                //Console.Error.WriteLine(NowDateTime.Prefix() + ex.GetType().Name + ": " + ex.Message);
             }
         }
 
@@ -317,6 +360,51 @@ namespace HL21
             catch (Exception ex)
             {
                 m_stats.answer("/balance", System.Net.HttpStatusCode.NoContent, DateTime.Now - start_time);
+                //Console.Error.WriteLine(NowDateTime.Prefix() + ex.GetType().Name + ": " + ex.Message);
+                return null;
+            }
+        }
+
+        public System.Collections.Generic.List<License> get_licenses()
+        {
+            var start_time = DateTime.Now;
+            try
+            {
+                var response = m_http.GetAsync("/licenses").Result;
+
+                m_stats.answer("/licenses", response.StatusCode, DateTime.Now - start_time);
+
+                if (response.StatusCode != System.Net.HttpStatusCode.OK)
+                    return null;
+
+                var json = System.Text.Json.JsonDocument.Parse(response.Content.ReadAsStringAsync().Result);
+
+                var length = json.RootElement.GetArrayLength();
+                var licenses = new System.Collections.Generic.List<License>(length);
+
+                for (int i = 0; i < length; ++i)
+                {
+                    licenses.Add(new License() {
+                        id = json.RootElement[i].GetProperty("id").GetInt32(),
+                        digAllowed = json.RootElement[i].GetProperty("digAllowed").GetInt32(),
+                        digUsed = json.RootElement[i].GetProperty("digUsed").GetInt32()
+                    });
+                }
+
+                return licenses;
+            }
+            catch (AggregateException ae)
+            {
+                m_stats.answer("/licenses", System.Net.HttpStatusCode.NoContent, DateTime.Now - start_time);
+                ae.Handle((ex) => {
+                    //Console.Error.WriteLine(NowDateTime.Prefix() + ex.GetType().Name + ": " + ex.Message);
+                    return true;
+                });
+                return null;
+            }
+            catch (Exception ex)
+            {
+                m_stats.answer("/licenses", System.Net.HttpStatusCode.NoContent, DateTime.Now - start_time);
                 //Console.Error.WriteLine(NowDateTime.Prefix() + ex.GetType().Name + ": " + ex.Message);
                 return null;
             }
