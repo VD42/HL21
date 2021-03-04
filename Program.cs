@@ -240,6 +240,86 @@ namespace HL21
             }
         }
 
+        public void fast_post_cash(string treasure)
+        {
+            var start_time = DateTime.Now;
+            try
+            {
+                var request_text_stream = new System.IO.MemoryStream();
+                var request_json_stream = new System.Text.Json.Utf8JsonWriter(request_text_stream);
+
+                request_json_stream.WriteStringValue(treasure);
+
+                request_json_stream.Flush();
+
+                request_text_stream.Position = 0;
+                var content = new System.Net.Http.StreamContent(request_text_stream);
+                content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+                System.Net.HttpStatusCode code = System.Net.HttpStatusCode.Accepted;
+                while (true)
+                {
+                    var task = m_http.PostAsync("/cash", content);
+                    task.Wait(5);
+                    if (!task.IsCompleted || (code = task.Result.StatusCode) == System.Net.HttpStatusCode.OK)
+                        break;
+                }
+
+                m_stats.answer("/cash (fast)", code, DateTime.Now - start_time);
+            }
+            catch (AggregateException ae)
+            {
+                m_stats.answer("/cash (fast)", System.Net.HttpStatusCode.NoContent, DateTime.Now - start_time);
+                ae.Handle((ex) => {
+                    //Console.Error.WriteLine(NowDateTime.Prefix() + ex.GetType().Name + ": " + ex.Message);
+                    return true;
+                });
+            }
+            catch (Exception ex)
+            {
+                m_stats.answer("/cash (fast)", System.Net.HttpStatusCode.NoContent, DateTime.Now - start_time);
+                //Console.Error.WriteLine(NowDateTime.Prefix() + ex.GetType().Name + ": " + ex.Message);
+            }
+        }
+
+        public System.Collections.Generic.List<int> get_balance()
+        {
+            var start_time = DateTime.Now;
+            try
+            {
+                var response = m_http.GetAsync("/balance").Result;
+
+                m_stats.answer("/balance", response.StatusCode, DateTime.Now - start_time);
+
+                if (response.StatusCode != System.Net.HttpStatusCode.OK)
+                    return null;
+
+                var json = System.Text.Json.JsonDocument.Parse(response.Content.ReadAsStringAsync().Result);
+
+                var length = json.RootElement.GetProperty("wallet").GetArrayLength();
+                var money = new System.Collections.Generic.List<int>(length);
+
+                for (int i = 0; i < length; ++i)
+                    money.Add(json.RootElement.GetProperty("wallet")[i].GetInt32());
+
+                return money;
+            }
+            catch (AggregateException ae)
+            {
+                m_stats.answer("/balance", System.Net.HttpStatusCode.NoContent, DateTime.Now - start_time);
+                ae.Handle((ex) => {
+                    //Console.Error.WriteLine(NowDateTime.Prefix() + ex.GetType().Name + ": " + ex.Message);
+                    return true;
+                });
+                return null;
+            }
+            catch (Exception ex)
+            {
+                m_stats.answer("/balance", System.Net.HttpStatusCode.NoContent, DateTime.Now - start_time);
+                //Console.Error.WriteLine(NowDateTime.Prefix() + ex.GetType().Name + ": " + ex.Message);
+                return null;
+            }
+        }
+
         public void explore_big_blocks(System.Threading.Mutex big_blocks_mutex, System.Collections.Generic.List<Block> big_blocks, int i, int count)
         {
             for (int x = i * 10; x < 3500; x += 10 * count)
@@ -674,13 +754,17 @@ namespace HL21
         public void print()
         {
             Console.Error.WriteLine(NowDateTime.Prefix() + "Stats:");
+            var total_time = new TimeSpan();
             foreach (var answer in m_answers)
             {
                 Console.Error.WriteLine("    " + answer.Key);
                 foreach (var status in answer.Value)
+                {
                     Console.Error.WriteLine("        " + status.Key.ToString() + ": " + status.Value.count.ToString() + " (" + (status.Value.time.TotalMilliseconds / (0 < status.Value.count ? status.Value.count : 1)).ToString() + ")");
+                    total_time += status.Value.time;
+                }
             }
-            Console.Error.WriteLine("    TOTAL: " + m_total.ToString());
+            Console.Error.WriteLine("    TOTAL: " + m_total.ToString() + " (" + total_time.TotalMilliseconds.ToString() + ")");
         }
 
         public void stats()
