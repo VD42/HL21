@@ -795,7 +795,7 @@ namespace HL21
 
         public int CompareTo(object obj)
         {
-            return -(digAllowed - digUsing).CompareTo((obj as License).digAllowed - (obj as License).digUsing);
+            return (digAllowed - digUsing).CompareTo((obj as License).digAllowed - (obj as License).digUsing);
         }
     }
 
