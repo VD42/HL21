@@ -87,7 +87,7 @@ namespace HL21
             }
         }
 
-        public License post_license(int coin = -1)
+        public License post_license(System.Collections.Generic.List<int> coins)
         {
             var start_time = DateTime.Now;
             try
@@ -96,7 +96,7 @@ namespace HL21
                 var request_json_stream = new System.Text.Json.Utf8JsonWriter(request_text_stream);
 
                 request_json_stream.WriteStartArray();
-                if (coin != -1)
+                foreach (var coin in coins)
                     request_json_stream.WriteNumberValue(coin);
                 request_json_stream.WriteEndArray();
 
@@ -107,7 +107,7 @@ namespace HL21
                 content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
                 var response = m_http.PostAsync("/licenses", content).Result;
 
-                m_stats.answer("/licenses " + (coin == -1 ? "(free)" : "(paid)"), response.StatusCode, DateTime.Now - start_time);
+                m_stats.answer("/licenses (" + coins.Count.ToString() + ")", response.StatusCode, DateTime.Now - start_time);
 
                 if (response.StatusCode != System.Net.HttpStatusCode.OK)
                     return null;
@@ -122,7 +122,7 @@ namespace HL21
             }
             catch (AggregateException ae)
             {
-                m_stats.answer("/licenses " + (coin == -1 ? "(free)" : "(paid)"), System.Net.HttpStatusCode.NoContent, DateTime.Now - start_time);
+                m_stats.answer("/licenses (" + coins.Count.ToString() + ")", System.Net.HttpStatusCode.NoContent, DateTime.Now - start_time);
                 ae.Handle((ex) => {
                     //Console.Error.WriteLine(NowDateTime.Prefix() + ex.GetType().Name + ": " + ex.Message);
                     return true;
@@ -131,7 +131,7 @@ namespace HL21
             }
             catch (Exception ex)
             {
-                m_stats.answer("/licenses " + (coin == -1 ? "(free)" : "(paid)"), System.Net.HttpStatusCode.NoContent, DateTime.Now - start_time);
+                m_stats.answer("/licenses (" + coins.Count.ToString() + ")", System.Net.HttpStatusCode.NoContent, DateTime.Now - start_time);
                 //Console.Error.WriteLine(NowDateTime.Prefix() + ex.GetType().Name + ": " + ex.Message);
                 return null;
             }
@@ -849,9 +849,35 @@ namespace HL21
         private System.Collections.Concurrent.ConcurrentDictionary<string, System.Collections.Concurrent.ConcurrentDictionary<System.Net.HttpStatusCode, AnswerInfo>> m_answers;
         public bool m_verbose = false;
 
-        public Stats()
+        private System.Threading.Mutex m_big_blocks_mutex;
+        private System.Threading.Mutex m_blocks_mutex;
+        private System.Threading.Mutex m_treasures_mutex;
+
+        private System.Collections.Generic.List<Block> m_big_blocks;
+        private System.Collections.Generic.List<Block> m_blocks;
+        private System.Collections.Generic.List<Treasure> m_treasures;
+        private System.Collections.Concurrent.ConcurrentBag<int> m_coins;
+
+        private LicenseManager m_lm;
+
+        public Stats(
+            System.Threading.Mutex big_blocks_mutex, System.Collections.Generic.List<Block> big_blocks,
+            System.Threading.Mutex blocks_mutex, System.Collections.Generic.List<Block> blocks,
+            LicenseManager lm,
+            System.Threading.Mutex treasures_mutex, System.Collections.Generic.List<Treasure> treasures,
+            System.Collections.Concurrent.ConcurrentBag<int> coins
+        )
         {
 #if _DEBUG
+            m_big_blocks_mutex = big_blocks_mutex;
+            m_blocks_mutex = blocks_mutex;
+            m_treasures_mutex = treasures_mutex;
+            m_big_blocks = big_blocks;
+            m_blocks = blocks;
+            m_treasures = treasures;
+            m_coins = coins;
+            m_lm = lm;
+
             Console.Error.WriteLine(NowDateTime.Prefix() + "Start");
             m_answers = new System.Collections.Concurrent.ConcurrentDictionary<string, System.Collections.Concurrent.ConcurrentDictionary<System.Net.HttpStatusCode, AnswerInfo>>();
 #endif
@@ -875,6 +901,23 @@ namespace HL21
         public void print()
         {
 #if _DEBUG
+            int big_blocks = 0;
+            lock (m_big_blocks_mutex)
+            {
+                big_blocks = m_big_blocks.Count;
+            }
+            int blocks = 0;
+            lock (m_blocks_mutex)
+            {
+                blocks = m_blocks.Count;
+            }
+            int treausures = 0;
+            lock (m_treasures_mutex)
+            {
+                treausures = m_treasures.Count;
+            }
+            int coins = m_coins.Count;
+
             Console.Error.WriteLine(NowDateTime.Prefix() + "Stats:");
             var total_time = new TimeSpan();
             foreach (var answer in m_answers)
@@ -887,6 +930,10 @@ namespace HL21
                 }
             }
             Console.Error.WriteLine("    TOTAL: " + m_total.ToString() + " (" + total_time.TotalMilliseconds.ToString() + ")");
+            Console.Error.WriteLine("    COINS: " + coins.ToString());
+            Console.Error.WriteLine("    TREASURES: " + treausures.ToString());
+            Console.Error.WriteLine("    BLOCKS: " + blocks.ToString());
+            Console.Error.WriteLine("    BIG BLOCKS: " + big_blocks.ToString());
 #endif
         }
 
@@ -975,10 +1022,11 @@ namespace HL21
             License license = null;
             while (license is null)
             {
+                var coins = new System.Collections.Generic.List<int>();
                 int coin;
-                if (!m_coins.TryTake(out coin))
-                    coin = -1;
-                license = client.post_license(coin);
+                if (m_coins.TryTake(out coin))
+                    coins.Add(coin);
+                license = client.post_license(coins);
             }
 
             lock (m_mutex)
@@ -1002,8 +1050,6 @@ namespace HL21
         {
             System.Net.ServicePointManager.DefaultConnectionLimit = 65536;
 
-            var stats = new Stats();
-
             string host = System.Environment.GetEnvironmentVariable("ADDRESS") ?? "127.0.0.1";
             int port = int.Parse(System.Environment.GetEnvironmentVariable("Port") ?? "8000");
             string schema = System.Environment.GetEnvironmentVariable("Schema") ?? "http";
@@ -1018,6 +1064,14 @@ namespace HL21
             var coins = new System.Collections.Concurrent.ConcurrentBag<int>();
 
             var lm = new LicenseManager(coins);
+
+            var stats = new Stats(
+                big_blocks_mutex, big_blocks,
+                blocks_mutex, blocks,
+                lm,
+                treasures_mutex, treasures,
+                coins
+            );
 
             var max_threads = 50;
 
