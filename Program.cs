@@ -410,6 +410,37 @@ namespace HL21
             }
         }
 
+        public string get_health_check()
+        {
+            var start_time = DateTime.Now;
+            try
+            {
+                var response = m_http.GetAsync("/health-check").Result;
+
+                m_stats.answer("/health-check", response.StatusCode, DateTime.Now - start_time);
+
+                if (response.StatusCode != System.Net.HttpStatusCode.OK)
+                    return "";
+
+                return response.Content.ReadAsStringAsync().Result;
+            }
+            catch (AggregateException ae)
+            {
+                m_stats.answer("/health-check", System.Net.HttpStatusCode.NoContent, DateTime.Now - start_time);
+                ae.Handle((ex) => {
+                    //Console.Error.WriteLine(NowDateTime.Prefix() + ex.GetType().Name + ": " + ex.Message);
+                    return true;
+                });
+                return null;
+            }
+            catch (Exception ex)
+            {
+                m_stats.answer("/health-check", System.Net.HttpStatusCode.NoContent, DateTime.Now - start_time);
+                //Console.Error.WriteLine(NowDateTime.Prefix() + ex.GetType().Name + ": " + ex.Message);
+                return null;
+            }
+        }
+
         public void explore_big_blocks(System.Threading.Mutex big_blocks_mutex, System.Collections.Generic.List<Block> big_blocks, int i, int count)
         {
             for (int x = i * 10; x < 3500; x += 10 * count)
@@ -937,13 +968,15 @@ namespace HL21
 #endif
         }
 
-        public void stats()
+        public void stats(Client client)
         {
 #if _DEBUG
             while (true)
             {
                 System.Threading.Thread.Sleep(10000);
                 print();
+                Console.Error.WriteLine("Server status: ");
+                Console.Error.WriteLine(client.get_health_check());
             }
 #endif
         }
@@ -1147,7 +1180,10 @@ namespace HL21
                 threads[threads.Count - 1].Start();
             }*/
 
-            stats.stats();
+            {
+                var client = new Client(schema, host, port, stats);
+                stats.stats(client);
+            }
         }
     }
 }
