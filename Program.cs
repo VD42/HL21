@@ -535,7 +535,7 @@ namespace HL21
                         {
                             int? license_id = null;
                             while (license_id is null)
-                                license_id = lm.get_license();
+                                license_id = lm.get_license(this);
                             System.Collections.Generic.List<string> surprise = null;
                             while (surprise is null)
                                 surprise = post_dig(license_id.Value, x, block.posY, h + 1);
@@ -582,8 +582,11 @@ namespace HL21
                 System.Collections.Generic.List<int> money = null;
                 while (money is null)
                     money = post_cash(treasure.id);
-                foreach (var m in money)
-                    coins.Add(m);
+                if (coins.Count < 1000)
+                {
+                    foreach (var m in money)
+                        coins.Add(m);
+                }
             }
         }
 
@@ -637,8 +640,8 @@ namespace HL21
 
                 // Licenses
 
-                if (lm.update_licenses(this))
-                    continue;
+                //if (lm.update_licenses(this))
+                //    continue;
 
                 // Digs
 
@@ -658,7 +661,7 @@ namespace HL21
                         for (int h = block.last_h; h < 10 && 0 < block.amount; ++h)
                         {
                             block.last_h = h;
-                            var license_id = lm.get_license();
+                            var license_id = lm.get_license(this);
                             if (license_id == null)
                             {
                                 lock (blocks_mutex)
@@ -688,14 +691,21 @@ namespace HL21
                                 treasures.Sort();
                             }
                             block.amount -= treasures.Count;
+                            if (0 < block.amount)
+                            {
+                                block.last_h = h + 1;
+                                lock (blocks_mutex)
+                                {
+                                    blocks.Add(block);
+                                    blocks.Sort();
+                                }
+                                break;
+                            }
                         }
                         found_block = true;
                     }
                 }
                 if (found_block)
-                    continue;
-
-                if (index < 25)
                     continue;
 
                 // Small blocks
@@ -733,6 +743,17 @@ namespace HL21
                                     blocks.Sort();
                                 }
                                 big_block.amount -= result.amount;
+                            }
+                            if (0 < big_block.amount)
+                            {
+                                big_block.sizeX = big_block.posX + big_block.sizeX - x - 1;
+                                big_block.posX = x + 1;
+                                lock (big_blocks_mutex)
+                                {
+                                    big_blocks.Add(big_block);
+                                    big_blocks.Sort();
+                                }
+                                break;
                             }
                         }
                         found_big_block = true;
@@ -780,7 +801,12 @@ namespace HL21
         {
             var amount_compare = amount.CompareTo((obj as Block).amount);
             if (amount_compare == 0)
-                return last_h.CompareTo((obj as Block).last_h);
+            {
+                var last_h_compare = last_h.CompareTo((obj as Block).last_h);
+                if (last_h_compare == 0)
+                    return ((obj as Block).sizeX * (obj as Block).sizeY).CompareTo(sizeX * sizeY);
+                return last_h_compare;
+            }
             return amount_compare;
         }
     }
@@ -795,7 +821,7 @@ namespace HL21
 
         public int CompareTo(object obj)
         {
-            return (digAllowed - digUsing).CompareTo((obj as License).digAllowed - (obj as License).digUsing);
+            return -(digAllowed - digUsing).CompareTo((obj as License).digAllowed - (obj as License).digUsing);
         }
     }
 
@@ -886,7 +912,7 @@ namespace HL21
             m_coins = coins;
         }
 
-        public int? get_license()
+        public int? get_license(Client client)
         {
             lock (m_mutex)
             {
@@ -897,8 +923,21 @@ namespace HL21
                         ++m_licenses[i].digUsing;
                         return m_licenses[i].id;
                     }
-                return null;
             }
+            if (update_licenses(client))
+            {
+                lock (m_mutex)
+                {
+                    m_licenses.Sort();
+                    for (int i = m_licenses.Count - 1; 0 <= i; --i)
+                        if (m_licenses[i] != null && m_licenses[i].digUsing < m_licenses[i].digAllowed)
+                        {
+                            ++m_licenses[i].digUsing;
+                            return m_licenses[i].id;
+                        }
+                }
+            }
+            return null;
         }
 
         public void use_license(int id)
@@ -921,7 +960,7 @@ namespace HL21
 
             lock (m_mutex)
             {
-                working = (m_licenses.Count < Math.Max(Math.Min(m_coins.Count, 10), 2));
+                working = (m_licenses.Count < 10);
                 if (working)
                     m_licenses.Add(null);
             }
