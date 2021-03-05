@@ -766,9 +766,10 @@ namespace HL21
 
                 if (current_big_block_x < 3500 && current_big_block_y < 3500)
                 {
+                    var block_size = 7;
                     Block block = null;
                     while (block is null)
-                        block = post_explore(current_big_block_x, current_big_block_y, 14, 1);
+                        block = post_explore(current_big_block_x, current_big_block_y, block_size, 1);
                     if (0 < block.amount)
                     {
                         lock (big_blocks_mutex)
@@ -780,7 +781,7 @@ namespace HL21
                     current_big_block_y += count;
                     if (3500 <= current_big_block_y)
                     {
-                        current_big_block_x += 14;
+                        current_big_block_x += block_size;
                         current_big_block_y = index;
                     }
                 }
