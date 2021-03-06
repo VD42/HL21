@@ -441,194 +441,6 @@ namespace HL21
             }
         }
 
-        public void explore_big_blocks(System.Threading.Mutex big_blocks_mutex, System.Collections.Generic.List<Block> big_blocks, int i, int count)
-        {
-            for (int x = i * 10; x < 3500; x += 10 * count)
-            {
-                for (int y = 0; y < 3500; y += 10)
-                {
-                    Block block = null;
-                    while (block is null)
-                        block = post_explore(x, y, 10, 10);
-                    if (0 < block.amount)
-                    {
-                        lock (big_blocks_mutex)
-                        {
-                            big_blocks.Add(block);
-                            big_blocks.Sort();
-                        }
-                    }
-                }
-            }
-        }
-
-        public void explore_blocks(System.Threading.Mutex big_blocks_mutex, System.Collections.Generic.List<Block> big_blocks, System.Threading.Mutex blocks_mutex, System.Collections.Generic.List<Block> blocks)
-        {
-            while (true)
-            {
-                Block block = null;
-                lock (big_blocks_mutex)
-                {
-                    if (0 < big_blocks.Count)
-                    {
-                        block = big_blocks[big_blocks.Count - 1];
-                        big_blocks.RemoveAt(big_blocks.Count - 1);
-                    }
-                }
-                if (block == null)
-                {
-                    System.Threading.Thread.Sleep(1);
-                    continue;
-                }
-
-                for (int by = block.posY; by < block.posY + 10 && 0 < block.amount; ++by)
-                {
-                    Block line = null;
-                    if (by == block.posY + 10 - 1)
-                    {
-                        line = new Block() { posX = block.posX, posY = by, sizeX = 10, sizeY = 1, amount = block.amount };
-                    }
-                    else
-                    {
-                        while (line is null)
-                            line = post_explore(block.posX, by, 10, 1);
-                    }
-                    if (0 < line.amount)
-                    {
-                        lock (blocks_mutex)
-                        {
-                            blocks.Add(line);
-                            blocks.Sort();
-                        }
-                        block.amount -= line.amount;
-                    }
-                }
-            }
-
-            /*for (int y = 0; y < 3500; ++y)
-            {
-                for (int x = 0; x < 3500; x += 10)
-                {
-                    Block line = null;
-                    while (line is null)
-                        line = post_explore(x, y, 10, 1);
-                    if (0 < line.amount)
-                    {
-                        lock (blocks_mutex)
-                        {
-                            blocks.Add(line);
-                            blocks.Sort();
-                        }
-                    }
-                }
-            }*/
-        }
-
-        public void dig_blocks(System.Threading.Mutex blocks_mutex, System.Collections.Generic.List<Block> blocks, LicenseManager lm, System.Threading.Mutex treasures_mutex, System.Collections.Generic.List<Treasure> treasures)
-        {
-            while (true)
-            {
-                Block block = null;
-                lock (blocks_mutex)
-                {
-                    if (0 < blocks.Count)
-                    {
-                        block = blocks[blocks.Count - 1];
-                        blocks.RemoveAt(blocks.Count - 1);
-                    }
-                }
-                if (block == null)
-                {
-                    System.Threading.Thread.Sleep(1);
-                    continue;
-                }
-
-                /*for (int y = block.posY; y < block.posY + 10 && 0 < block.amount; ++y)
-                {
-                    Block line = null;
-                    while (line is null)
-                        line = post_explore(block.posX, y, 10, 1);*/
-
-                    for (int x = block.posX; x < block.posX + block.sizeX && 0 < block.amount; ++x)
-                    {
-                        Block result = null;
-                        if (x == block.posX + block.sizeX - 1)
-                        {
-                            result = new Block() { posX = x, posY = block.posY, sizeX = 1, sizeY = 1, amount = block.amount };
-                        }
-                        else
-                        {
-                            while (result is null)
-                                result = post_explore(x, block.posY, 1, 1);
-                        }
-
-                        for (int h = 0; h < 10 && 0 < result.amount; ++h)
-                        {
-                            int? license_id = null;
-                            while (license_id is null)
-                                license_id = lm.get_license(this);
-                            System.Collections.Generic.List<string> surprise = null;
-                            while (surprise is null)
-                                surprise = post_dig(license_id.Value, x, block.posY, h + 1);
-                            lm.use_license(license_id.Value);
-                            if (surprise.Count == 1 && surprise[0] == "i_need_license!!!")
-                            {
-                                --h;
-                                continue;
-                            }
-                            lock (treasures_mutex)
-                            {
-                                foreach (var treasure in surprise)
-                                    treasures.Add(new Treasure() { id = treasure, depth = h });
-                                treasures.Sort();
-                            }
-                            result.amount -= treasures.Count;
-                            //line.amount -= treasures.Count;
-                            block.amount -= treasures.Count;
-                        }
-                    }
-                //}
-            }
-        }
-
-        public void cash_treasures(System.Threading.Mutex treasures_mutex, System.Collections.Generic.List<Treasure> treasures, System.Collections.Concurrent.ConcurrentBag<int> coins)
-        {
-            while (true)
-            {
-                Treasure treasure = null;
-                lock (treasures_mutex)
-                {
-                    if (0 < treasures.Count)
-                    {
-                        treasure = treasures[treasures.Count - 1];
-                        treasures.RemoveAt(treasures.Count - 1);
-                    }
-                }
-                if (treasure == null)
-                {
-                    System.Threading.Thread.Sleep(1);
-                    continue;
-                }
-
-                System.Collections.Generic.List<int> money = null;
-                while (money is null)
-                    money = post_cash(treasure.id);
-                if (coins.Count < 1000)
-                {
-                    foreach (var m in money)
-                        coins.Add(m);
-                }
-            }
-        }
-
-        public void manage_licenses(LicenseManager lm)
-        {
-            while (true)
-            {
-                lm.update_licenses(this);
-            }
-        }
-
         public void work(
             int index, int count,
             System.Threading.Mutex big_blocks_mutex, System.Collections.Generic.List<Block> big_blocks,
@@ -641,16 +453,19 @@ namespace HL21
             int current_big_block_x = 0;
             int current_big_block_y = index;
 
-            bool i_ve_1000 = false;
-            bool i_ve_50000 = false;
+            bool i_ve_500 = false;
+            bool i_ve_40000 = false;
 
             while (true)
             {
-                if (!i_ve_1000 && 1000 <= coins.Count)
-                    i_ve_1000 = true;
+                if (!i_ve_500 && 500 <= coins.Count)
+                    i_ve_500 = true;
 
-                if (!i_ve_50000 && 50000 <= coins.Count)
-                    i_ve_50000 = true;
+                if (!i_ve_40000 && 40000 <= coins.Count)
+                    i_ve_40000 = true;
+
+                if (i_ve_40000 && 30 <= index)
+                    break;
 
                 // Treasures
 
@@ -667,9 +482,9 @@ namespace HL21
                     }
                     if (treasure != null)
                     {
-                        if (i_ve_1000 && treasure.depth < 2)
+                        if (i_ve_500 && treasure.depth < 2)
                             continue;
-                        if (!i_ve_50000)
+                        if (!i_ve_40000)
                         {
                             System.Collections.Generic.List<int> money = null;
                             while (money is null)
@@ -1066,10 +881,7 @@ namespace HL21
             }
 
             if (!working)
-            {
-                //System.Threading.Thread.Sleep(1);
                 return false;
-            }
 
             License license = null;
             while (license is null)
@@ -1125,7 +937,7 @@ namespace HL21
                 coins
             );
 
-            var max_threads = 30;
+            var max_threads = 50;
 
             var threads = new System.Collections.Generic.List<System.Threading.Thread>(max_threads);
 
@@ -1146,58 +958,6 @@ namespace HL21
                 }));
                 threads[threads.Count - 1].Start();
             }
-
-            /*for (int i = 0; i < 6; ++i)
-            {
-                var client = new Client(schema, host, port, stats);
-                threads.Add(new System.Threading.Thread(() =>
-                {
-                    client.manage_licenses(lm);
-                }));
-                threads[threads.Count - 1].Start();
-            }
-
-            for (int i = 0; i < 1; ++i)
-            {
-                var index = i;
-                var client = new Client(schema, host, port, stats);
-                threads.Add(new System.Threading.Thread(() =>
-                {
-                    client.explore_big_blocks(big_blocks_mutex, big_blocks, index, 1);
-                }));
-                threads[threads.Count - 1].Start();
-            }
-
-            for (int i = 0; i < 1; ++i)
-            {
-                var client = new Client(schema, host, port, stats);
-                threads.Add(new System.Threading.Thread(() =>
-                {
-                    client.explore_blocks(big_blocks_mutex, big_blocks, blocks_mutex, blocks);
-                }));
-                threads[threads.Count - 1].Start();
-            }
-
-            for (int i = 0; i < 40; ++i)
-            {
-                var client = new Client(schema, host, port, stats);
-                threads.Add(new System.Threading.Thread(() =>
-                {
-                    client.cash_treasures(treasures_mutex, treasures, coins);
-                }));
-                threads[threads.Count - 1].Priority = System.Threading.ThreadPriority.Highest;
-                threads[threads.Count - 1].Start();
-            }
-
-            for (int i = 0; i < 10; ++i)
-            {
-                var client = new Client(schema, host, port, stats);
-                threads.Add(new System.Threading.Thread(() =>
-                {
-                    client.dig_blocks(blocks_mutex, blocks, lm, treasures_mutex, treasures);
-                }));
-                threads[threads.Count - 1].Start();
-            }*/
 
             {
                 var client = new Client(schema, host, port, stats);
