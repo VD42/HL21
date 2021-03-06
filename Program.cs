@@ -304,7 +304,7 @@ namespace HL21
                 while (true)
                 {
                     var task = m_http.PostAsync("/cash", content);
-                    task.Wait(5);
+                    task.Wait(10);
                     if (!task.IsCompleted || (code = task.Result.StatusCode) == System.Net.HttpStatusCode.OK)
                         break;
                 }
@@ -641,8 +641,17 @@ namespace HL21
             int current_big_block_x = 0;
             int current_big_block_y = index;
 
+            bool i_ve_1000 = false;
+            bool i_ve_50000 = false;
+
             while (true)
             {
+                if (!i_ve_1000 && 1000 <= coins.Count)
+                    i_ve_1000 = true;
+
+                if (!i_ve_50000 && 50000 <= coins.Count)
+                    i_ve_50000 = true;
+
                 // Treasures
 
                 bool found_treasure = false;
@@ -658,13 +667,20 @@ namespace HL21
                     }
                     if (treasure != null)
                     {
-                        if (treasure.depth < 2 && 1000 < coins.Count)
+                        if (i_ve_1000 && treasure.depth < 2)
                             continue;
-                        System.Collections.Generic.List<int> money = null;
-                        while (money is null)
-                            money = post_cash(treasure.id);
-                        foreach (var m in money)
-                            coins.Add(m);
+                        if (!i_ve_50000)
+                        {
+                            System.Collections.Generic.List<int> money = null;
+                            while (money is null)
+                                money = post_cash(treasure.id);
+                            foreach (var m in money)
+                                coins.Add(m);
+                        }
+                        else
+                        {
+                            fast_post_cash(treasure.id);
+                        }
                         found_treasure = true;
                     }
                 }
@@ -691,7 +707,8 @@ namespace HL21
                     }
                     if (block != null)
                     {
-                        for (int h = block.last_h; h < 10 && 0 < block.amount; ++h)
+                        var max_h = 10;
+                        for (int h = block.last_h; h < max_h && 0 < block.amount; ++h)
                         {
                             block.last_h = h;
                             var license_id = lm.get_license(this);
@@ -724,7 +741,7 @@ namespace HL21
                                 treasures.Sort();
                             }
                             block.amount -= treasures.Count;
-                            if (0 < block.amount)
+                            if (h + 1 < max_h && 0 < block.amount)
                             {
                                 block.last_h = h + 1;
                                 lock (blocks_mutex)
@@ -1108,7 +1125,7 @@ namespace HL21
                 coins
             );
 
-            var max_threads = 50;
+            var max_threads = 30;
 
             var threads = new System.Collections.Generic.List<System.Threading.Thread>(max_threads);
 
