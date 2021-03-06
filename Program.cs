@@ -658,6 +658,8 @@ namespace HL21
                     }
                     if (treasure != null)
                     {
+                        if (treasure.depth < 2 && 1000 < coins.Count)
+                            continue;
                         System.Collections.Generic.List<int> money = null;
                         while (money is null)
                             money = post_cash(treasure.id);
