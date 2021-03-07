@@ -312,7 +312,7 @@ namespace HL21
                 content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
 
                 var task = m_http.PostAsync("/cash", content);
-                task.Wait(100);
+                task.Wait(50);
 
                 if (!task.IsCompleted)
                 {
@@ -485,8 +485,8 @@ namespace HL21
 
             while (true)
             {
-                //if (i_ve_500 && 30 <= index)
-                //    break;
+                if (i_ve_500 && 30 <= index)
+                    break;
 
                 // Treasures
 
@@ -984,7 +984,7 @@ namespace HL21
                 treasures_mutex, treasures
             );
 
-            var max_threads = 20;
+            var max_threads = 60;
 
             var threads = new System.Collections.Generic.List<System.Threading.Thread>(max_threads);
 
