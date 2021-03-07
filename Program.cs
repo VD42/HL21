@@ -105,7 +105,17 @@ namespace HL21
                 request_text_stream.Position = 0;
                 var content = new System.Net.Http.StreamContent(request_text_stream);
                 content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
-                var response = m_http.PostAsync("/licenses", content).Result;
+
+                var task = m_http.PostAsync("/licenses", content);
+                task.Wait(200);
+
+                if (coins.Count == 0 && !task.IsCompleted)
+                {
+                    m_stats.answer("/licenses (" + coins.Count.ToString() + ")", System.Net.HttpStatusCode.Processing, DateTime.Now - start_time);
+                    return null;
+                }
+
+                var response = task.Result;
 
                 m_stats.answer("/licenses (" + coins.Count.ToString() + ")", response.StatusCode, DateTime.Now - start_time);
 
@@ -285,7 +295,7 @@ namespace HL21
             }
         }
 
-        public void fast_post_cash(string treasure)
+        public System.Collections.Generic.List<int> fast_post_cash(string treasure)
         {
             var start_time = DateTime.Now;
             try
@@ -300,16 +310,32 @@ namespace HL21
                 request_text_stream.Position = 0;
                 var content = new System.Net.Http.StreamContent(request_text_stream);
                 content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
-                System.Net.HttpStatusCode code = System.Net.HttpStatusCode.Accepted;
-                while (true)
+
+                var task = m_http.PostAsync("/cash", content);
+                task.Wait(100);
+
+                if (!task.IsCompleted)
                 {
-                    var task = m_http.PostAsync("/cash", content);
-                    task.Wait(10);
-                    if (!task.IsCompleted || (code = task.Result.StatusCode) == System.Net.HttpStatusCode.OK)
-                        break;
+                    m_stats.answer("/cash (fast)", System.Net.HttpStatusCode.Processing, DateTime.Now - start_time);
+                    return new System.Collections.Generic.List<int>();
                 }
 
-                m_stats.answer("/cash (fast)", code, DateTime.Now - start_time);
+                var response = task.Result;
+
+                m_stats.answer("/cash (fast)", task.Result.StatusCode, DateTime.Now - start_time);
+
+                if (response.StatusCode != System.Net.HttpStatusCode.OK)
+                    return null;
+
+                var json = System.Text.Json.JsonDocument.Parse(response.Content.ReadAsStringAsync().Result);
+
+                var length = json.RootElement.GetArrayLength();
+                var money = new System.Collections.Generic.List<int>(length);
+
+                for (int i = 0; i < length; ++i)
+                    money.Add(json.RootElement[i].GetInt32());
+
+                return money;
             }
             catch (AggregateException ae)
             {
@@ -318,11 +344,13 @@ namespace HL21
                     //Console.Error.WriteLine(NowDateTime.Prefix() + ex.GetType().Name + ": " + ex.Message);
                     return true;
                 });
+                return null;
             }
             catch (Exception ex)
             {
                 m_stats.answer("/cash (fast)", System.Net.HttpStatusCode.NoContent, DateTime.Now - start_time);
                 //Console.Error.WriteLine(NowDateTime.Prefix() + ex.GetType().Name + ": " + ex.Message);
+                return null;
             }
         }
 
@@ -446,26 +474,19 @@ namespace HL21
             System.Threading.Mutex big_blocks_mutex, System.Collections.Generic.List<Block> big_blocks,
             System.Threading.Mutex blocks_mutex, System.Collections.Generic.List<Block> blocks,
             LicenseManager lm,
-            System.Threading.Mutex treasures_mutex, System.Collections.Generic.List<Treasure> treasures,
-            System.Collections.Concurrent.ConcurrentBag<int> coins
+            System.Threading.Mutex treasures_mutex, System.Collections.Generic.List<Treasure> treasures
         )
         {
             int current_big_block_x = 0;
             int current_big_block_y = index;
 
             bool i_ve_500 = false;
-            bool i_ve_40000 = false;
+            //bool i_ve_40000 = false;
 
             while (true)
             {
-                if (!i_ve_500 && 500 <= coins.Count)
-                    i_ve_500 = true;
-
-                if (!i_ve_40000 && 40000 <= coins.Count)
-                    i_ve_40000 = true;
-
-                if (i_ve_40000 && 30 <= index)
-                    break;
+                //if (i_ve_500 && 30 <= index)
+                //    break;
 
                 // Treasures
 
@@ -484,17 +505,34 @@ namespace HL21
                     {
                         if (i_ve_500 && treasure.depth < 2)
                             continue;
-                        if (!i_ve_40000)
+                        System.Collections.Generic.List<int> money;
+                        if (!i_ve_500)
+                            money = post_cash(treasure.id);
+                        else
+                            money = fast_post_cash(treasure.id);
+                        if (money is null)
                         {
-                            System.Collections.Generic.List<int> money = null;
-                            while (money is null)
-                                money = post_cash(treasure.id);
-                            foreach (var m in money)
-                                coins.Add(m);
+                            lock (treasures_mutex)
+                            {
+                                treasures.Add(treasure);
+                                treasures.Sort();
+                            }
                         }
                         else
                         {
-                            fast_post_cash(treasure.id);
+                            int max_m = -1;
+                            foreach (var m in money)
+                                if (max_m < m)
+                                    max_m = m;
+                            if (!i_ve_500 && 500 < max_m)
+                                i_ve_500 = true;
+                            lock (Program.coin_mutex)
+                            {
+                                if (max_m == -1)
+                                    max_m = Program.max_coin_id + 3 * (treasure.depth + 1);
+                                if (Program.max_coin_id < max_m)
+                                    Program.max_coin_id = max_m;
+                            }
                         }
                         found_treasure = true;
                     }
@@ -706,6 +744,8 @@ namespace HL21
     {
         public int count = 0;
         public TimeSpan time = new TimeSpan();
+        public TimeSpan min_time = TimeSpan.MaxValue;
+        public TimeSpan max_time = TimeSpan.MinValue;
     }
 
     public class Stats
@@ -721,7 +761,6 @@ namespace HL21
         private System.Collections.Generic.List<Block> m_big_blocks;
         private System.Collections.Generic.List<Block> m_blocks;
         private System.Collections.Generic.List<Treasure> m_treasures;
-        private System.Collections.Concurrent.ConcurrentBag<int> m_coins;
 
         private LicenseManager m_lm;
 
@@ -729,8 +768,7 @@ namespace HL21
             System.Threading.Mutex big_blocks_mutex, System.Collections.Generic.List<Block> big_blocks,
             System.Threading.Mutex blocks_mutex, System.Collections.Generic.List<Block> blocks,
             LicenseManager lm,
-            System.Threading.Mutex treasures_mutex, System.Collections.Generic.List<Treasure> treasures,
-            System.Collections.Concurrent.ConcurrentBag<int> coins
+            System.Threading.Mutex treasures_mutex, System.Collections.Generic.List<Treasure> treasures
         )
         {
 #if _DEBUG
@@ -740,7 +778,6 @@ namespace HL21
             m_big_blocks = big_blocks;
             m_blocks = blocks;
             m_treasures = treasures;
-            m_coins = coins;
             m_lm = lm;
 
             Console.Error.WriteLine(NowDateTime.Prefix() + "Start");
@@ -757,6 +794,10 @@ namespace HL21
             m_answers[method].TryAdd(status, new AnswerInfo());
             ++m_answers[method][status].count;
             m_answers[method][status].time += ts;
+            if (ts < m_answers[method][status].min_time)
+                m_answers[method][status].min_time = ts;
+            if (m_answers[method][status].max_time < ts)
+                m_answers[method][status].max_time = ts;
 
             if (m_verbose)
                 Console.Error.WriteLine(NowDateTime.Prefix() + method + " " + status.ToString());
@@ -781,7 +822,11 @@ namespace HL21
             {
                 treausures = m_treasures.Count;
             }
-            int coins = m_coins.Count;
+            int coins = 0;
+            lock (Program.coin_mutex)
+            {
+                coins = Program.max_coin_id - Program.current_coin_id;
+            }
 
             Console.Error.WriteLine(NowDateTime.Prefix() + "Stats:");
             var total_time = new TimeSpan();
@@ -790,7 +835,7 @@ namespace HL21
                 Console.Error.WriteLine("    " + answer.Key);
                 foreach (var status in answer.Value)
                 {
-                    Console.Error.WriteLine("        " + status.Key.ToString() + ": " + status.Value.count.ToString() + " (" + (status.Value.time.TotalMilliseconds / (0 < status.Value.count ? status.Value.count : 1)).ToString() + ")");
+                    Console.Error.WriteLine("        " + status.Key.ToString() + ": " + status.Value.count.ToString() + " (" + status.Value.min_time.TotalMilliseconds.ToString() + " ... " + (status.Value.time.TotalMilliseconds / (0 < status.Value.count ? status.Value.count : 1)).ToString() + " ... " + status.Value.max_time.TotalMilliseconds.ToString() + ")");
                     total_time += status.Value.time;
                 }
             }
@@ -809,8 +854,8 @@ namespace HL21
             {
                 System.Threading.Thread.Sleep(10000);
                 print();
-                Console.Error.WriteLine("Server status: ");
-                Console.Error.WriteLine(client.get_health_check());
+                //Console.Error.WriteLine("Server status: ");
+                //Console.Error.WriteLine(client.get_health_check());
             }
 #endif
         }
@@ -820,11 +865,9 @@ namespace HL21
     {
         private System.Collections.Generic.List<License> m_licenses = new System.Collections.Generic.List<License>();
         private System.Threading.Mutex m_mutex = new System.Threading.Mutex();
-        private System.Collections.Concurrent.ConcurrentBag<int> m_coins;
 
-        public LicenseManager(System.Collections.Concurrent.ConcurrentBag<int> coins)
+        public LicenseManager()
         {
-            m_coins = coins;
         }
 
         public int? get_license(Client client)
@@ -887,9 +930,11 @@ namespace HL21
             while (license is null)
             {
                 var coins = new System.Collections.Generic.List<int>();
-                int coin;
-                if (m_coins.TryTake(out coin))
-                    coins.Add(coin);
+                lock (Program.coin_mutex)
+                {
+                    if (Program.current_coin_id < Program.max_coin_id)
+                        coins.Add(++Program.current_coin_id);
+                }
                 license = client.post_license(coins);
             }
 
@@ -908,9 +953,13 @@ namespace HL21
         }
     }
 
-    class Program
+    public class Program
     {
-        static void Main(string[] args)
+        public static System.Threading.Mutex coin_mutex = new System.Threading.Mutex();
+        public static int current_coin_id = -1;
+        public static int max_coin_id = -1;
+
+        public static void Main(string[] args)
         {
             System.Net.ServicePointManager.DefaultConnectionLimit = 65536;
 
@@ -925,19 +974,17 @@ namespace HL21
             var big_blocks = new System.Collections.Generic.List<Block>();
             var blocks = new System.Collections.Generic.List<Block>();
             var treasures = new System.Collections.Generic.List<Treasure>();
-            var coins = new System.Collections.Concurrent.ConcurrentBag<int>();
 
-            var lm = new LicenseManager(coins);
+            var lm = new LicenseManager();
 
             var stats = new Stats(
                 big_blocks_mutex, big_blocks,
                 blocks_mutex, blocks,
                 lm,
-                treasures_mutex, treasures,
-                coins
+                treasures_mutex, treasures
             );
 
-            var max_threads = 50;
+            var max_threads = 20;
 
             var threads = new System.Collections.Generic.List<System.Threading.Thread>(max_threads);
 
@@ -952,8 +999,7 @@ namespace HL21
                         big_blocks_mutex, big_blocks,
                         blocks_mutex, blocks,
                         lm,
-                        treasures_mutex, treasures,
-                        coins
+                        treasures_mutex, treasures
                     );
                 }));
                 threads[threads.Count - 1].Start();
