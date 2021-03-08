@@ -626,39 +626,55 @@ namespace HL21
                     }
                     if (big_block != null)
                     {
-                        for (int x = big_block.posX; x < big_block.posX + big_block.sizeX && 0 < big_block.amount; ++x)
+                        int left_size = big_block.sizeX / 2;
+                        int right_size = big_block.sizeX - left_size;
+
+                        Block left_block = null;
+                        while (left_block is null)
+                            left_block = post_explore(big_block.posX, big_block.posY, left_size, 1);
+
+                        var right_block = new Block() { posX = left_block.posX + left_block.sizeX, posY = big_block.posY, sizeX = right_size, sizeY = 1, amount = big_block.amount - left_block.amount };
+
+                        if (0 < left_block.amount)
                         {
-                            Block result = null;
-                            if (x == big_block.posX + big_block.sizeX - 1)
-                            {
-                                result = new Block() { posX = x, posY = big_block.posY, sizeX = 1, sizeY = 1, amount = big_block.amount };
-                            }
-                            else
-                            {
-                                while (result is null)
-                                    result = post_explore(x, big_block.posY, 1, 1);
-                            }
-                            if (0 < result.amount)
+                            if (left_block.sizeX == 1)
                             {
                                 lock (blocks_mutex)
                                 {
-                                    blocks.Add(result);
+                                    blocks.Add(left_block);
                                     blocks.Sort();
                                 }
-                                big_block.amount -= result.amount;
                             }
-                            if (0 < big_block.amount)
+                            else
                             {
-                                big_block.sizeX = big_block.posX + big_block.sizeX - x - 1;
-                                big_block.posX = x + 1;
                                 lock (big_blocks_mutex)
                                 {
-                                    big_blocks.Add(big_block);
+                                    big_blocks.Add(left_block);
                                     big_blocks.Sort();
                                 }
-                                break;
                             }
                         }
+
+                        if (0 < right_block.amount)
+                        {
+                            if (right_block.sizeX == 1)
+                            {
+                                lock (blocks_mutex)
+                                {
+                                    blocks.Add(right_block);
+                                    blocks.Sort();
+                                }
+                            }
+                            else
+                            {
+                                lock (big_blocks_mutex)
+                                {
+                                    big_blocks.Add(right_block);
+                                    big_blocks.Sort();
+                                }
+                            }
+                        }
+
                         found_big_block = true;
                     }
                 }
