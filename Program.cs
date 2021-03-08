@@ -685,7 +685,7 @@ namespace HL21
 
                 if (current_big_block_x < 3500 && current_big_block_y < 3500)
                 {
-                    var block_size = 7;
+                    var block_size = 14;
                     Block block = null;
                     while (block is null)
                         block = post_explore(current_big_block_x, current_big_block_y, block_size, 1);
