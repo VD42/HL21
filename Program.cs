@@ -66,7 +66,11 @@ namespace HL21
                 };
 
                 if (sizeX * sizeY == 1)
+                {
                     m_stats.answer("/explore (" + (sizeX * sizeY).ToString() + ", " + block.amount.ToString() + ")", response.StatusCode, DateTime.Now - start_time);
+                    if (2 < block.amount)
+                        Console.WriteLine(block.posX.ToString() + "x" + block.posY.ToString() + "=" + block.amount.ToString());
+                }
 
                 return block;
             }
@@ -477,7 +481,7 @@ namespace HL21
             System.Threading.Mutex treasures_mutex, System.Collections.Generic.List<Treasure> treasures
         )
         {
-            int current_big_block_x = 0;
+            int current_big_block_x = 1000;
             int current_big_block_y = index;
 
             bool i_ve_500 = false;
@@ -639,10 +643,13 @@ namespace HL21
                         {
                             if (left_block.sizeX == 1)
                             {
-                                lock (blocks_mutex)
+                                if (!Program.IsPredefinedBlock(left_block))
                                 {
-                                    blocks.Add(left_block);
-                                    blocks.Sort();
+                                    lock (blocks_mutex)
+                                    {
+                                        blocks.Add(left_block);
+                                        blocks.Sort();
+                                    }
                                 }
                             }
                             else
@@ -659,10 +666,13 @@ namespace HL21
                         {
                             if (right_block.sizeX == 1)
                             {
-                                lock (blocks_mutex)
+                                if (!Program.IsPredefinedBlock(right_block))
                                 {
-                                    blocks.Add(right_block);
-                                    blocks.Sort();
+                                    lock (blocks_mutex)
+                                    {
+                                        blocks.Add(right_block);
+                                        blocks.Sort();
+                                    }
                                 }
                             }
                             else
@@ -728,6 +738,11 @@ namespace HL21
                 return last_h_compare;
             }
             return amount_compare;
+        }
+
+        public string GetKey()
+        {
+            return posX.ToString() + "x" + posY.ToString();
         }
     }
 
@@ -974,6 +989,17 @@ namespace HL21
         public static System.Threading.Mutex coin_mutex = new System.Threading.Mutex();
         public static int current_coin_id = -1;
         public static int max_coin_id = -1;
+        public static System.Collections.Concurrent.ConcurrentDictionary<string, Block> predefined_blocks = new System.Collections.Concurrent.ConcurrentDictionary<string, Block>();
+
+        public static void AddPredefinedBlock(Block block)
+        {
+            predefined_blocks.TryAdd(block.GetKey(), block);
+        }
+
+        public static bool IsPredefinedBlock(Block block)
+        {
+            return predefined_blocks.ContainsKey(block.GetKey());
+        }
 
         public static void Main(string[] args)
         {
@@ -999,6 +1025,52 @@ namespace HL21
                 lm,
                 treasures_mutex, treasures
             );
+
+            // Predefined blocks
+            AddPredefinedBlock(new Block() { posX = 73, posY = 3446, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 295, posY = 1440, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 327, posY = 3321, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 431, posY = 383, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 710, posY = 2009, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 737, posY = 721, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 738, posY = 132, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 827, posY = 446, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 830, posY = 18, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 917, posY = 1626, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 964, posY = 1167, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 1068, posY = 12, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 1278, posY = 3447, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 1395, posY = 3021, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 1449, posY = 3007, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 1587, posY = 2773, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 1604, posY = 2724, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 1608, posY = 2287, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 1618, posY = 972, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 1661, posY = 2042, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 1696, posY = 1026, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 1716, posY = 2102, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 1719, posY = 629, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 1765, posY = 2304, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 1767, posY = 3077, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 1819, posY = 1163, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 1911, posY = 1564, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 2134, posY = 3076, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 2150, posY = 1582, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 2231, posY = 2849, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 2357, posY = 564, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 2755, posY = 2843, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 2772, posY = 922, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 2995, posY = 3182, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 3005, posY = 3253, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 3088, posY = 861, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 3096, posY = 678, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 3253, posY = 3491, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 3389, posY = 967, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 3407, posY = 2061, sizeX = 1, sizeY = 1, amount = 3 });
+            AddPredefinedBlock(new Block() { posX = 3456, posY = 1267, sizeX = 1, sizeY = 1, amount = 3 });
+
+            foreach (var block in predefined_blocks)
+                blocks.Add(block.Value);
 
             var max_threads = 60;
 
