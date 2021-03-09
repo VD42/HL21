@@ -481,7 +481,7 @@ namespace HL21
             System.Threading.Mutex treasures_mutex, System.Collections.Generic.List<Treasure> treasures
         )
         {
-            int current_big_block_x = 0;
+            int current_big_block_x = 1000;
             int current_big_block_y = index;
 
             bool i_ve_enough = false;
@@ -653,11 +653,14 @@ namespace HL21
                         {
                             if (left_block.sizeX == 1)
                             {
-                                lock (blocks_mutex)
+                                if (!Hardcode.IsPredefinedBlock(left_block))
                                 {
-                                    blocks.Add(left_block);
-                                    blocks.Sort();
-                                }
+	                                lock (blocks_mutex)
+	                                {
+	                                    blocks.Add(left_block);
+	                                    blocks.Sort();
+	                                }
+	                            }
                             }
                             else
                             {
@@ -673,11 +676,14 @@ namespace HL21
                         {
                             if (right_block.sizeX == 1)
                             {
-                                lock (blocks_mutex)
+                                if (!Hardcode.IsPredefinedBlock(right_block))
                                 {
-                                    blocks.Add(right_block);
-                                    blocks.Sort();
-                                }
+	                                lock (blocks_mutex)
+	                                {
+	                                    blocks.Add(right_block);
+	                                    blocks.Sort();
+	                                }
+	                            }
                             }
                             else
                             {
@@ -1018,6 +1024,8 @@ namespace HL21
                 lm,
                 treasures_mutex, treasures
             );
+
+            Hardcode.AddPredefinedBlocks(blocks_mutex, blocks);
 
             var max_threads = 42;
 
