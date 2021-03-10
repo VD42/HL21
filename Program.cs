@@ -489,9 +489,6 @@ namespace HL21
 
             while (true)
             {
-                if (i_ve_500 && 30 <= index)
-                    break;
-
                 // Treasures
 
                 bool found_treasure = false;
@@ -564,6 +561,7 @@ namespace HL21
                     }
                     if (block != null)
                     {
+                        bool no_license = false;
                         var max_h = 10;
                         for (int h = block.last_h; h < max_h && 0 < block.amount; ++h)
                         {
@@ -571,6 +569,7 @@ namespace HL21
                             var license_id = lm.get_license(this);
                             if (license_id == null)
                             {
+                                no_license = true;
                                 lock (blocks_mutex)
                                 {
                                     blocks.Add(block);
@@ -609,7 +608,8 @@ namespace HL21
                                 break;
                             }
                         }
-                        found_block = true;
+                        if (!no_license)
+                            found_block = true;
                     }
                 }
                 if (found_block)
@@ -1072,7 +1072,7 @@ namespace HL21
             foreach (var block in predefined_blocks)
                 blocks.Add(block.Value);
 
-            var max_threads = 60;
+            var max_threads = 30;
 
             var threads = new System.Collections.Generic.List<System.Threading.Thread>(max_threads);
 
