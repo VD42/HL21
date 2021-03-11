@@ -4,6 +4,7 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>netcoreapp3.1</TargetFramework>
     <AssemblyName>hl21</AssemblyName>
+    <Platforms>x64</Platforms>
   </PropertyGroup>
 
 </Project>
