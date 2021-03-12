@@ -111,7 +111,7 @@ namespace HL21
                 content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
 
                 var task = m_http.PostAsync("/licenses", content);
-                task.Wait(150);
+                task.Wait(200);
 
                 if (coins.Count == 0 && !task.IsCompleted)
                 {
@@ -1016,7 +1016,7 @@ namespace HL21
                 treasures_mutex, treasures
             );
 
-            var max_threads = 10;
+            var max_threads = 42;
 
             var threads = new System.Collections.Generic.List<System.Threading.Thread>(max_threads);
 
@@ -1041,6 +1041,9 @@ namespace HL21
                 var client = new Client(schema, host, port, stats);
                 stats.stats(client);
             }
+
+            foreach (var thread in threads)
+                thread.Join();
         }
     }
 }
