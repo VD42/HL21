@@ -111,7 +111,7 @@ namespace HL21
                 content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
 
                 var task = m_http.PostAsync("/licenses", content);
-                task.Wait(200);
+                task.Wait(150);
 
                 if (coins.Count == 0 && !task.IsCompleted)
                 {
@@ -316,7 +316,7 @@ namespace HL21
                 content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
 
                 var task = m_http.PostAsync("/cash", content);
-                task.Wait(50);
+                task.Wait(40);
 
                 if (!task.IsCompleted)
                 {
@@ -488,8 +488,26 @@ namespace HL21
             int enough_money = 500;
             int min_exchange_level = 2;
 
+            var threads = new System.Collections.Generic.List<System.Threading.Thread>(1000);
+
             while (true)
             {
+                for (int i = 0; i < threads.Count; ++i)
+                    if (!threads[i].IsAlive)
+                    {
+                        threads.RemoveAt(i);
+                        --i;
+                    }
+
+                if (!i_ve_enough)
+                {
+                    lock (Program.coin_mutex)
+                    {
+                        if (enough_money <= Program.max_coin_id)
+                            i_ve_enough = true;
+                    }
+                }
+
                 // Treasures
 
                 bool found_treasure = false;
@@ -507,35 +525,23 @@ namespace HL21
                     {
                         if (i_ve_enough && treasure.depth < min_exchange_level)
                             continue;
-                        System.Collections.Generic.List<int> money;
-                        if (!i_ve_enough)
-                            money = post_cash(treasure.id);
-                        else
-                            money = fast_post_cash(treasure.id);
-                        if (money is null)
+                        var thread = new System.Threading.Thread(() =>
                         {
-                            lock (treasures_mutex)
-                            {
-                                treasures.Add(treasure);
-                                treasures.Sort();
-                            }
-                        }
-                        else
-                        {
+                            System.Collections.Generic.List<int> money = null;
+                            while (money is null)
+                                money = post_cash(treasure.id);
                             int max_m = -1;
                             foreach (var m in money)
                                 if (max_m < m)
                                     max_m = m;
-                            if (!i_ve_enough && enough_money <= max_m)
-                                i_ve_enough = true;
                             lock (Program.coin_mutex)
                             {
-                                if (max_m == -1)
-                                    max_m = Program.max_coin_id + 3 * (treasure.depth + 1);
                                 if (Program.max_coin_id < max_m)
                                     Program.max_coin_id = max_m;
                             }
-                        }
+                        });
+                        thread.Start();
+                        threads.Add(thread);
                         found_treasure = true;
                     }
                 }
@@ -724,15 +730,15 @@ namespace HL21
 
         public int CompareTo(object obj)
         {
-            var amount_compare = amount.CompareTo((obj as Block).amount);
-            if (amount_compare == 0)
+            var square_compare = ((obj as Block).sizeX * (obj as Block).sizeY).CompareTo(sizeX * sizeY);
+            if (square_compare == 0)
             {
-                var last_h_compare = last_h.CompareTo((obj as Block).last_h);
-                if (last_h_compare == 0)
-                    return ((obj as Block).sizeX * (obj as Block).sizeY).CompareTo(sizeX * sizeY);
-                return last_h_compare;
+                var amount_compare = amount.CompareTo((obj as Block).amount);
+                if (amount_compare == 0)
+                    return last_h.CompareTo((obj as Block).last_h);
+                return amount_compare;
             }
-            return amount_compare;
+            return square_compare;
         }
 
         public string GetKey()
@@ -1010,7 +1016,7 @@ namespace HL21
                 treasures_mutex, treasures
             );
 
-            var max_threads = 30;
+            var max_threads = 10;
 
             var threads = new System.Collections.Generic.List<System.Threading.Thread>(max_threads);
 
