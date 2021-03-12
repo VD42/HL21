@@ -484,8 +484,9 @@ namespace HL21
             int current_big_block_x = 0;
             int current_big_block_y = index;
 
-            bool i_ve_500 = false;
-            //bool i_ve_40000 = false;
+            bool i_ve_enough = false;
+            int enough_money = 500;
+            int min_exchange_level = 2;
 
             while (true)
             {
@@ -504,10 +505,10 @@ namespace HL21
                     }
                     if (treasure != null)
                     {
-                        if (i_ve_500 && treasure.depth < 2)
+                        if (i_ve_enough && treasure.depth < min_exchange_level)
                             continue;
                         System.Collections.Generic.List<int> money;
-                        if (!i_ve_500)
+                        if (!i_ve_enough)
                             money = post_cash(treasure.id);
                         else
                             money = fast_post_cash(treasure.id);
@@ -525,8 +526,8 @@ namespace HL21
                             foreach (var m in money)
                                 if (max_m < m)
                                     max_m = m;
-                            if (!i_ve_500 && 500 < max_m)
-                                i_ve_500 = true;
+                            if (!i_ve_enough && enough_money <= max_m)
+                                i_ve_enough = true;
                             lock (Program.coin_mutex)
                             {
                                 if (max_m == -1)
