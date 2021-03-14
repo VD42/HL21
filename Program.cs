@@ -1,4 +1,4 @@
-﻿#define _DEBUG
+﻿//#define _DEBUG
 
 using System;
 
@@ -66,11 +66,7 @@ namespace HL21
                 };
 
                 if (sizeX * sizeY == 1)
-                {
                     m_stats.answer("/explore (" + (sizeX * sizeY).ToString() + ", " + block.amount.ToString() + ")", response.StatusCode, DateTime.Now - start_time);
-                    if (2 < block.amount)
-                        Console.WriteLine(block.posX.ToString() + "x" + block.posY.ToString() + "=" + block.amount.ToString());
-                }
 
                 return block;
             }
@@ -481,7 +477,7 @@ namespace HL21
             System.Threading.Mutex treasures_mutex, System.Collections.Generic.List<Treasure> treasures
         )
         {
-            int current_big_block_x = 1000;
+            int current_big_block_x = 400;
             int current_big_block_y = index;
 
             bool i_ve_enough = false;
@@ -597,6 +593,10 @@ namespace HL21
                                 }
                                 break;
                             }
+
+                            if (h == 0 && !Hardcode.IsPredefinedBlock(block) && block.amount == 2)
+                                Console.WriteLine("AddPredefinedBlock(blocks, new Block() { posX = " + block.posX + ", posY = " + block.posY + ", sizeX = 1, sizeY = 1, amount = " + block.amount + " });");
+
                             if (0 < surprise.Count)
                             {
                                 lock (treasures_mutex)
