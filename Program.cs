@@ -597,13 +597,16 @@ namespace HL21
                                 }
                                 break;
                             }
-                            lock (treasures_mutex)
+                            if (0 < surprise.Count)
                             {
-                                foreach (var treasure in surprise)
-                                    treasures.Add(new Treasure() { id = treasure, depth = h });
-                                treasures.Sort();
+                                lock (treasures_mutex)
+                                {
+                                    foreach (var treasure in surprise)
+                                        treasures.Add(new Treasure() { id = treasure, depth = h });
+                                    treasures.Sort();
+                                }
+                                block.amount -= surprise.Count;
                             }
-                            block.amount -= treasures.Count;
                             if (h + 1 < max_h && 0 < block.amount)
                             {
                                 block.last_h = h + 1;
