@@ -20,6 +20,7 @@ namespace global
 	std::mutex coin_mutex;
 	int current_coin_id = -1;
 	int max_coin_id = -1;
+    int cashes = 0;
 }
 
 struct CBlock final
@@ -169,9 +170,11 @@ public:
             treausures = m_treasures.size();
         }
         int coins = 0;
+        int cashes = 0;
         {
             auto lock = std::unique_lock{ global::coin_mutex };
             coins = global::max_coin_id - global::current_coin_id;
+            cashes = global::cashes;
         }
 
         std::cout << prefix() << "Stats:" << std::endl;
@@ -193,6 +196,7 @@ public:
         std::cout << "    TREASURES: " << treausures << std::endl;
         std::cout << "    BLOCKS: " << blocks << std::endl;
         std::cout << "    BIG BLOCKS: " << big_blocks << std::endl;
+        std::cout << "    CASHES: " << cashes << std::endl;
 #endif
     }
 
@@ -570,6 +574,10 @@ public:
                     if (i_ve_enough && treasure->depth < min_exchange_level)
                         continue;
 					std::thread([m_client = *this, m_treasure = treasure.value()] () mutable {
+                        {
+                            auto lock = std::unique_lock{ global::coin_mutex };
+                            ++global::cashes;
+                        }
                         std::optional<std::vector<int>> money;
                         while (!money.has_value())
                             money = m_client.post_cash(m_treasure.id);
@@ -581,6 +589,7 @@ public:
 							auto lock = std::unique_lock{ global::coin_mutex };
 							if (global::max_coin_id < max_m)
 								global::max_coin_id = max_m;
+                            --global::cashes;
 						}
                     }).detach();
                     found_treasure = true;
@@ -883,10 +892,10 @@ int main()
 
     for (int i = 0; i < max_threads; ++i)
     {
-		threads.push_back(std::thread([&] () {
+		threads.push_back(std::thread([&, m_index = i] () {
 			auto client = CClient{ schema, host, port, stats };
 			client.work(
-				i, max_threads,
+                m_index, max_threads,
 				big_blocks_mutex, big_blocks,
 				blocks_mutex, blocks,
 				lm,
@@ -899,9 +908,6 @@ int main()
 		auto client = CClient{ schema, host, port, stats };
         stats.stats(client);
     }
-
-	for (auto & thread : threads)
-		thread.join();
 
     return 0;
 }
