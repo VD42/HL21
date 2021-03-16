@@ -260,6 +260,10 @@ public:
         writer.Key("sizeY"); writer.Int(sizeY);
         writer.EndObject();
 
+        std::unique_ptr<curl_slist, decltype(curl_slist_free_all)*> list{ nullptr, curl_slist_free_all };
+        list.reset(curl_slist_append(list.release(), "Content-Type:application/json"));
+        list.reset(curl_slist_append(list.release(), "Expect:"));
+
         std::unique_ptr<CURL, decltype(curl_easy_cleanup)*> curl{ curl_easy_init(), curl_easy_cleanup };
         curl_easy_setopt(curl.get(), CURLOPT_SHARE, m_curl_share);
 
@@ -267,11 +271,7 @@ public:
 
         curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
 
-        curl_slist * list = nullptr;
-        list = curl_slist_append(list, "Content-Type:application/json");
-        list = curl_slist_append(list, "Expect:");
-
-        curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, list);
+        curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, list.get());
 
         curl_easy_setopt(curl.get(), CURLOPT_SOCKOPTFUNCTION, static_cast<curl_sockopt_callback>([] (void * clientp, curl_socket_t curlfd, curlsocktype purpose) {
             static const auto sl = linger{ 1, 0 };
@@ -293,8 +293,6 @@ public:
         }));
 
         const auto curl_code = curl_easy_perform(curl.get());
-
-        curl_slist_free_all(list);
 
         if (curl_code != CURLE_OK)
         {
@@ -340,6 +338,10 @@ public:
             writer.Int(coin);
         writer.EndArray();
 
+        std::unique_ptr<curl_slist, decltype(curl_slist_free_all)*> list{ nullptr, curl_slist_free_all };
+        list.reset(curl_slist_append(list.release(), "Content-Type:application/json"));
+        list.reset(curl_slist_append(list.release(), "Expect:"));
+
         std::unique_ptr<CURL, decltype(curl_easy_cleanup)*> curl{ curl_easy_init(), curl_easy_cleanup };
         curl_easy_setopt(curl.get(), CURLOPT_SHARE, m_curl_share);
 
@@ -347,11 +349,7 @@ public:
 
         curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
 
-        curl_slist * list = nullptr;
-        list = curl_slist_append(list, "Content-Type:application/json");
-        list = curl_slist_append(list, "Expect:");
-
-        curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, list);
+        curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, list.get());
 
         curl_easy_setopt(curl.get(), CURLOPT_SOCKOPTFUNCTION, static_cast<curl_sockopt_callback>([] (void * clientp, curl_socket_t curlfd, curlsocktype purpose) {
             static const auto sl = linger{ 1, 0 };
@@ -376,8 +374,6 @@ public:
             curl_easy_setopt(curl.get(), CURLOPT_TIMEOUT_MS, 200L);
 
         const auto curl_code = curl_easy_perform(curl.get());
-
-        curl_slist_free_all(list);
 
         if (coins.size() == 0 && curl_code == CURLE_OPERATION_TIMEDOUT)
         {
@@ -423,6 +419,10 @@ public:
         writer.Key("depth"); writer.Int(depth);
         writer.EndObject();
 
+        std::unique_ptr<curl_slist, decltype(curl_slist_free_all)*> list{ nullptr, curl_slist_free_all };
+        list.reset(curl_slist_append(list.release(), "Content-Type:application/json"));
+        list.reset(curl_slist_append(list.release(), "Expect:"));
+
         std::unique_ptr<CURL, decltype(curl_easy_cleanup)*> curl{ curl_easy_init(), curl_easy_cleanup };
         curl_easy_setopt(curl.get(), CURLOPT_SHARE, m_curl_share);
 
@@ -430,11 +430,7 @@ public:
 
         curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
 
-        curl_slist * list = nullptr;
-        list = curl_slist_append(list, "Content-Type:application/json");
-        list = curl_slist_append(list, "Expect:");
-
-        curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, list);
+        curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, list.get());
 
         curl_easy_setopt(curl.get(), CURLOPT_SOCKOPTFUNCTION, static_cast<curl_sockopt_callback>([] (void * clientp, curl_socket_t curlfd, curlsocktype purpose) {
             static const auto sl = linger{ 1, 0 };
@@ -456,8 +452,6 @@ public:
         }));
 
         const auto curl_code = curl_easy_perform(curl.get());
-
-        curl_slist_free_all(list);
 
         if (curl_code != CURLE_OK)
         {
@@ -500,6 +494,10 @@ public:
 
         writer.String(treasure.c_str(), treasure.length());
 
+        std::unique_ptr<curl_slist, decltype(curl_slist_free_all)*> list{ nullptr, curl_slist_free_all };
+        list.reset(curl_slist_append(list.release(), "Content-Type:application/json"));
+        list.reset(curl_slist_append(list.release(), "Expect:"));
+
         std::unique_ptr<CURL, decltype(curl_easy_cleanup)*> curl{ curl_easy_init(), curl_easy_cleanup };
         curl_easy_setopt(curl.get(), CURLOPT_SHARE, m_curl_share);
 
@@ -507,11 +505,7 @@ public:
 
         curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
 
-        curl_slist * list = nullptr;
-        list = curl_slist_append(list, "Content-Type:application/json");
-        list = curl_slist_append(list, "Expect:");
-
-        curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, list);
+        curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, list.get());
 
         curl_easy_setopt(curl.get(), CURLOPT_SOCKOPTFUNCTION, static_cast<curl_sockopt_callback>([] (void * clientp, curl_socket_t curlfd, curlsocktype purpose) {
             static const auto sl = linger{ 1, 0 };
@@ -533,8 +527,6 @@ public:
         }));
 
         const auto curl_code = curl_easy_perform(curl.get());
-
-        curl_slist_free_all(list);
 
         if (curl_code != CURLE_OK)
         {
@@ -863,10 +855,13 @@ bool CLicenseManager::update_licenses(CClient& client)
     if (!working)
         return false;
 
+    const auto use_free = (std::rand() % 10 < 1);
+
     std::optional<CLicense> license;
     while (!license.has_value())
     {
         std::vector<int> coins;
+        if (!use_free)
         {
             auto lock = std::unique_lock{ global::coin_mutex };
             if (global::current_coin_id < global::max_coin_id)
