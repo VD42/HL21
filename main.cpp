@@ -12,6 +12,7 @@
 #include <vector>
 #include <thread>
 #include <iostream>
+#include <array>
 
 #define _STATS
 
@@ -234,23 +235,15 @@ private:
 class CClient final
 {
 public:
-    CClient(std::string schema, std::string host, std::string port, CStats & stats)
-        : m_stats(stats)
+    CClient(CURLSH * curl_share, std::string schema, std::string host, std::string port, CStats & stats)
+        : m_curl_share(curl_share), m_stats(stats)
     {
         m_base = schema + "://" + host + ":" + port;
-        m_curl = curl_easy_init();
     }
 
     CClient(CClient const& other)
-        : m_stats(other.m_stats)
+        : m_curl_share(other.m_curl_share), m_base(other.m_base), m_stats(other.m_stats)
     {
-        m_base = other.m_base;
-        m_curl = curl_easy_init();
-    }
-
-    ~CClient()
-    {
-        curl_easy_cleanup(m_curl);
     }
 
     std::optional<CBlock> post_explore(int posX, int posY, int sizeX, int sizeY)
@@ -267,30 +260,32 @@ public:
         writer.Key("sizeY"); writer.Int(sizeY);
         writer.EndObject();
 
-        curl_easy_reset(m_curl);
+        std::unique_ptr<CURL, decltype(curl_easy_cleanup)*> curl{ curl_easy_init(), curl_easy_cleanup };
+        curl_easy_setopt(curl.get(), CURLOPT_SHARE, m_curl_share);
 
         const auto url = m_base + "/explore";
 
-        curl_easy_setopt(m_curl, CURLOPT_URL, url.c_str());
+        curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
 
         curl_slist * list = nullptr;
         list = curl_slist_append(list, "Content-Type:application/json");
 
-        curl_easy_setopt(m_curl, CURLOPT_HTTPHEADER, list);
+        curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, list);
 
-        curl_easy_setopt(m_curl, CURLOPT_POST, 1L);
-        curl_easy_setopt(m_curl, CURLOPT_POSTFIELDS, buffer.GetString());
-        curl_easy_setopt(m_curl, CURLOPT_POSTFIELDSIZE, buffer.GetSize());
+        curl_easy_setopt(curl.get(), CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_0);
+        curl_easy_setopt(curl.get(), CURLOPT_POST, 1L);
+        curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDS, buffer.GetString());
+        curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDSIZE, buffer.GetSize());
 
         std::string out_buffer;
 
-        curl_easy_setopt(m_curl, CURLOPT_WRITEDATA, static_cast<void*>(&out_buffer));
-        curl_easy_setopt(m_curl, CURLOPT_WRITEFUNCTION, static_cast<curl_write_callback>([] (char * buffer, size_t size, size_t nitems, void * outstream) -> size_t {
+        curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, static_cast<void*>(&out_buffer));
+        curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, static_cast<curl_write_callback>([] (char * buffer, size_t size, size_t nitems, void * outstream) -> size_t {
             static_cast<std::string*>(outstream)->append(buffer, buffer + (size * nitems));
             return size * nitems;
         }));
 
-        const auto curl_code = curl_easy_perform(m_curl);
+        const auto curl_code = curl_easy_perform(curl.get());
 
         curl_slist_free_all(list);
 
@@ -301,7 +296,7 @@ public:
         }
 
         long code = 0;
-        curl_easy_getinfo(m_curl, CURLINFO_HTTP_CODE, &code);
+        curl_easy_getinfo(curl.get(), CURLINFO_HTTP_CODE, &code);
 
         if (code != 200 || sizeX * sizeY != 1)
             m_stats.answer("/explore (" + std::to_string(sizeX * sizeY) + ")", code, CStats::now() - start_time);
@@ -338,32 +333,35 @@ public:
             writer.Int(coin);
         writer.EndArray();
 
-        curl_easy_reset(m_curl);
+        std::unique_ptr<CURL, decltype(curl_easy_cleanup)*> curl{ curl_easy_init(), curl_easy_cleanup };
+        curl_easy_setopt(curl.get(), CURLOPT_SHARE, m_curl_share);
 
         const auto url = m_base + "/licenses";
 
-        curl_easy_setopt(m_curl, CURLOPT_URL, url.c_str());
+        curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
 
         curl_slist * list = nullptr;
         list = curl_slist_append(list, "Content-Type:application/json");
 
-        curl_easy_setopt(m_curl, CURLOPT_HTTPHEADER, list);
+        curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, list);
 
-        curl_easy_setopt(m_curl, CURLOPT_POST, 1L);
-        curl_easy_setopt(m_curl, CURLOPT_POSTFIELDS, buffer.GetString());
-        curl_easy_setopt(m_curl, CURLOPT_POSTFIELDSIZE, buffer.GetSize());
+        curl_easy_setopt(curl.get(), CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_0);
+        curl_easy_setopt(curl.get(), CURLOPT_POST, 1L);
+        curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDS, buffer.GetString());
+        curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDSIZE, buffer.GetSize());
 
         std::string out_buffer;
 
-        curl_easy_setopt(m_curl, CURLOPT_WRITEDATA, static_cast<void*>(&out_buffer));
-        curl_easy_setopt(m_curl, CURLOPT_WRITEFUNCTION, static_cast<curl_write_callback>([] (char * buffer, size_t size, size_t nitems, void * outstream) -> size_t {
+        curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, static_cast<void*>(&out_buffer));
+        curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, static_cast<curl_write_callback>([] (char * buffer, size_t size, size_t nitems, void * outstream) -> size_t {
             static_cast<std::string*>(outstream)->append(buffer, buffer + (size * nitems));
             return size * nitems;
         }));
 
-        curl_easy_setopt(m_curl, CURLOPT_TIMEOUT_MS, 200L);
+        if (coins.size() == 0)
+            curl_easy_setopt(curl.get(), CURLOPT_TIMEOUT_MS, 200L);
 
-        const auto curl_code = curl_easy_perform(m_curl);
+        const auto curl_code = curl_easy_perform(curl.get());
 
         curl_slist_free_all(list);
 
@@ -380,7 +378,7 @@ public:
         }
 
         long code = 0;
-        curl_easy_getinfo(m_curl, CURLINFO_HTTP_CODE, &code);
+        curl_easy_getinfo(curl.get(), CURLINFO_HTTP_CODE, &code);
 
         m_stats.answer("/licenses (" + std::to_string(coins.size()) + ")", code, CStats::now() - start_time);
 
@@ -411,30 +409,32 @@ public:
         writer.Key("depth"); writer.Int(depth);
         writer.EndObject();
 
-        curl_easy_reset(m_curl);
+        std::unique_ptr<CURL, decltype(curl_easy_cleanup)*> curl{ curl_easy_init(), curl_easy_cleanup };
+        curl_easy_setopt(curl.get(), CURLOPT_SHARE, m_curl_share);
 
         const auto url = m_base + "/dig";
 
-        curl_easy_setopt(m_curl, CURLOPT_URL, url.c_str());
+        curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
 
         curl_slist * list = nullptr;
         list = curl_slist_append(list, "Content-Type:application/json");
 
-        curl_easy_setopt(m_curl, CURLOPT_HTTPHEADER, list);
+        curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, list);
 
-        curl_easy_setopt(m_curl, CURLOPT_POST, 1L);
-        curl_easy_setopt(m_curl, CURLOPT_POSTFIELDS, buffer.GetString());
-        curl_easy_setopt(m_curl, CURLOPT_POSTFIELDSIZE, buffer.GetSize());
+        curl_easy_setopt(curl.get(), CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_0);
+        curl_easy_setopt(curl.get(), CURLOPT_POST, 1L);
+        curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDS, buffer.GetString());
+        curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDSIZE, buffer.GetSize());
 
         std::string out_buffer;
 
-        curl_easy_setopt(m_curl, CURLOPT_WRITEDATA, static_cast<void*>(&out_buffer));
-        curl_easy_setopt(m_curl, CURLOPT_WRITEFUNCTION, static_cast<curl_write_callback>([] (char * buffer, size_t size, size_t nitems, void * outstream) -> size_t {
+        curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, static_cast<void*>(&out_buffer));
+        curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, static_cast<curl_write_callback>([] (char * buffer, size_t size, size_t nitems, void * outstream) -> size_t {
             static_cast<std::string*>(outstream)->append(buffer, buffer + (size * nitems));
             return size * nitems;
         }));
 
-        const auto curl_code = curl_easy_perform(m_curl);
+        const auto curl_code = curl_easy_perform(curl.get());
 
         curl_slist_free_all(list);
 
@@ -445,7 +445,7 @@ public:
         }
 
         long code = 0;
-        curl_easy_getinfo(m_curl, CURLINFO_HTTP_CODE, &code);
+        curl_easy_getinfo(curl.get(), CURLINFO_HTTP_CODE, &code);
 
         m_stats.answer("/dig", code, CStats::now() - start_time);
 
@@ -479,30 +479,32 @@ public:
 
         writer.String(treasure.c_str(), treasure.length());
 
-        curl_easy_reset(m_curl);
+        std::unique_ptr<CURL, decltype(curl_easy_cleanup)*> curl{ curl_easy_init(), curl_easy_cleanup };
+        curl_easy_setopt(curl.get(), CURLOPT_SHARE, m_curl_share);
 
         const auto url = m_base + "/cash";
 
-        curl_easy_setopt(m_curl, CURLOPT_URL, url.c_str());
+        curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
 
         curl_slist * list = nullptr;
         list = curl_slist_append(list, "Content-Type:application/json");
 
-        curl_easy_setopt(m_curl, CURLOPT_HTTPHEADER, list);
+        curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, list);
 
-        curl_easy_setopt(m_curl, CURLOPT_POST, 1L);
-        curl_easy_setopt(m_curl, CURLOPT_POSTFIELDS, buffer.GetString());
-        curl_easy_setopt(m_curl, CURLOPT_POSTFIELDSIZE, buffer.GetSize());
+        curl_easy_setopt(curl.get(), CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_0);
+        curl_easy_setopt(curl.get(), CURLOPT_POST, 1L);
+        curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDS, buffer.GetString());
+        curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDSIZE, buffer.GetSize());
 
         std::string out_buffer;
 
-        curl_easy_setopt(m_curl, CURLOPT_WRITEDATA, static_cast<void*>(&out_buffer));
-        curl_easy_setopt(m_curl, CURLOPT_WRITEFUNCTION, static_cast<curl_write_callback>([] (char * buffer, size_t size, size_t nitems, void * outstream) -> size_t {
+        curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, static_cast<void*>(&out_buffer));
+        curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, static_cast<curl_write_callback>([] (char * buffer, size_t size, size_t nitems, void * outstream) -> size_t {
             static_cast<std::string*>(outstream)->append(buffer, buffer + (size * nitems));
             return size * nitems;
         }));
 
-        const auto curl_code = curl_easy_perform(m_curl);
+        const auto curl_code = curl_easy_perform(curl.get());
 
         curl_slist_free_all(list);
 
@@ -513,7 +515,7 @@ public:
         }
 
         long code = 0;
-        curl_easy_getinfo(m_curl, CURLINFO_HTTP_CODE, &code);
+        curl_easy_getinfo(curl.get(), CURLINFO_HTTP_CODE, &code);
 
         m_stats.answer("/cash", code, CStats::now() - start_time);
 
@@ -770,7 +772,7 @@ public:
     }
 
 private:
-    CURL * m_curl = nullptr;
+    CURLSH * m_curl_share;
     std::string m_base;
     CStats & m_stats;
 };
@@ -863,6 +865,24 @@ int main()
 {
     curl_global_init(CURL_GLOBAL_ALL);
 
+    std::array<std::mutex, curl_lock_data::CURL_LOCK_DATA_LAST> share_mutexes;
+
+    auto * curl_share = curl_share_init();
+    curl_share_setopt(curl_share, CURLSHOPT_USERDATA, static_cast<void*>(&share_mutexes));
+    curl_share_setopt(curl_share, CURLSHOPT_LOCKFUNC, static_cast<curl_lock_function>([] (CURL * handle, curl_lock_data data, curl_lock_access locktype, void * userptr) {
+        auto * mutexes = static_cast<decltype(share_mutexes)*>(userptr);
+        mutexes->at(data).lock();
+    }));
+    curl_share_setopt(curl_share, CURLSHOPT_UNLOCKFUNC, static_cast<curl_unlock_function>([] (CURL * handle, curl_lock_data data, void * userptr) {
+        auto * mutexes = static_cast<decltype(share_mutexes)*>(userptr);
+        mutexes->at(data).unlock();
+    }));
+    curl_share_setopt(curl_share, CURLSHOPT_SHARE, curl_lock_data::CURL_LOCK_DATA_CONNECT);
+    curl_share_setopt(curl_share, CURLSHOPT_SHARE, curl_lock_data::CURL_LOCK_DATA_COOKIE);
+    curl_share_setopt(curl_share, CURLSHOPT_SHARE, curl_lock_data::CURL_LOCK_DATA_DNS);
+    curl_share_setopt(curl_share, CURLSHOPT_SHARE, curl_lock_data::CURL_LOCK_DATA_PSL);
+    curl_share_setopt(curl_share, CURLSHOPT_SHARE, curl_lock_data::CURL_LOCK_DATA_SSL_SESSION);
+
     auto host = std::getenv("ADDRESS") ? std::string{ std::getenv("ADDRESS") } : std::string{ "127.0.0.1" };
     auto port = std::getenv("Port") ? std::string{ std::getenv("Port") } : std::string{ "8000" };
     auto schema = std::getenv("Schema") ? std::string{ std::getenv("Schema") } : std::string{ "http" };
@@ -893,7 +913,7 @@ int main()
     for (int i = 0; i < max_threads; ++i)
     {
 		threads.push_back(std::thread([&, m_index = i] () {
-			auto client = CClient{ schema, host, port, stats };
+			auto client = CClient{ curl_share, schema, host, port, stats };
 			client.work(
                 m_index, max_threads,
 				big_blocks_mutex, big_blocks,
@@ -905,7 +925,7 @@ int main()
     }
 
     {
-		auto client = CClient{ schema, host, port, stats };
+		auto client = CClient{ curl_share, schema, host, port, stats };
         stats.stats(client);
     }
 
