@@ -359,7 +359,7 @@ public:
         }));
 
         if (coins.size() == 0)
-            curl_easy_setopt(curl.get(), CURLOPT_TIMEOUT_MS, 200L);
+            curl_easy_setopt(curl.get(), CURLOPT_TIMEOUT_MS, 150L);
 
         const auto curl_code = curl_easy_perform(curl.get());
 
@@ -833,7 +833,7 @@ bool CLicenseManager::update_licenses(CClient& client)
     if (!working)
         return false;
 
-    const auto use_free = (std::rand() % 10 < 2);
+    const auto use_free = (std::rand() % 10 < 3);
 
     std::optional<CLicense> license;
     while (!license.has_value())
