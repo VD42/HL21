@@ -833,7 +833,7 @@ bool CLicenseManager::update_licenses(CClient& client)
     if (!working)
         return false;
 
-    const auto use_free = (std::rand() % 10 < 1);
+    const auto use_free = (std::rand() % 10 < 2);
 
     std::optional<CLicense> license;
     while (!license.has_value())
