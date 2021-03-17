@@ -273,6 +273,7 @@ public:
 
         curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, list.get());
 
+        curl_easy_setopt(curl.get(), CURLOPT_MAXCONNECTS, 65535);
         curl_easy_setopt(curl.get(), CURLOPT_POST, 1L);
         curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDS, buffer.GetString());
         curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDSIZE, buffer.GetSize());
@@ -344,6 +345,7 @@ public:
 
         curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, list.get());
 
+        curl_easy_setopt(curl.get(), CURLOPT_MAXCONNECTS, 65535);
         curl_easy_setopt(curl.get(), CURLOPT_POST, 1L);
         curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDS, buffer.GetString());
         curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDSIZE, buffer.GetSize());
@@ -418,6 +420,7 @@ public:
 
         curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, list.get());
 
+        curl_easy_setopt(curl.get(), CURLOPT_MAXCONNECTS, 65535);
         curl_easy_setopt(curl.get(), CURLOPT_POST, 1L);
         curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDS, buffer.GetString());
         curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDSIZE, buffer.GetSize());
@@ -486,6 +489,7 @@ public:
 
         curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, list.get());
 
+        curl_easy_setopt(curl.get(), CURLOPT_MAXCONNECTS, 65535);
         curl_easy_setopt(curl.get(), CURLOPT_POST, 1L);
         curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDS, buffer.GetString());
         curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDSIZE, buffer.GetSize());
