@@ -273,13 +273,6 @@ public:
 
         curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, list.get());
 
-        curl_easy_setopt(curl.get(), CURLOPT_SOCKOPTFUNCTION, static_cast<curl_sockopt_callback>([] (void * clientp, curl_socket_t curlfd, curlsocktype purpose) {
-            static const auto sl = linger{ 1, 0 };
-            setsockopt(curlfd, SOL_SOCKET, SO_LINGER, &sl, sizeof(sl));
-            return CURL_SOCKOPT_OK;
-        }));
-        curl_easy_setopt(curl.get(), CURLOPT_FORBID_REUSE, 1L);
-        curl_easy_setopt(curl.get(), CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_0);
         curl_easy_setopt(curl.get(), CURLOPT_POST, 1L);
         curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDS, buffer.GetString());
         curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDSIZE, buffer.GetSize());
@@ -351,13 +344,6 @@ public:
 
         curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, list.get());
 
-        curl_easy_setopt(curl.get(), CURLOPT_SOCKOPTFUNCTION, static_cast<curl_sockopt_callback>([] (void * clientp, curl_socket_t curlfd, curlsocktype purpose) {
-            static const auto sl = linger{ 1, 0 };
-            setsockopt(curlfd, SOL_SOCKET, SO_LINGER, &sl, sizeof(sl));
-            return CURL_SOCKOPT_OK;
-        }));
-        curl_easy_setopt(curl.get(), CURLOPT_FORBID_REUSE, 1L);
-        curl_easy_setopt(curl.get(), CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_0);
         curl_easy_setopt(curl.get(), CURLOPT_POST, 1L);
         curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDS, buffer.GetString());
         curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDSIZE, buffer.GetSize());
@@ -432,13 +418,6 @@ public:
 
         curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, list.get());
 
-        curl_easy_setopt(curl.get(), CURLOPT_SOCKOPTFUNCTION, static_cast<curl_sockopt_callback>([] (void * clientp, curl_socket_t curlfd, curlsocktype purpose) {
-            static const auto sl = linger{ 1, 0 };
-            setsockopt(curlfd, SOL_SOCKET, SO_LINGER, &sl, sizeof(sl));
-            return CURL_SOCKOPT_OK;
-        }));
-        curl_easy_setopt(curl.get(), CURLOPT_FORBID_REUSE, 1L);
-        curl_easy_setopt(curl.get(), CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_0);
         curl_easy_setopt(curl.get(), CURLOPT_POST, 1L);
         curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDS, buffer.GetString());
         curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDSIZE, buffer.GetSize());
@@ -507,13 +486,6 @@ public:
 
         curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, list.get());
 
-        curl_easy_setopt(curl.get(), CURLOPT_SOCKOPTFUNCTION, static_cast<curl_sockopt_callback>([] (void * clientp, curl_socket_t curlfd, curlsocktype purpose) {
-            static const auto sl = linger{ 1, 0 };
-            setsockopt(curlfd, SOL_SOCKET, SO_LINGER, &sl, sizeof(sl));
-            return CURL_SOCKOPT_OK;
-        }));
-        curl_easy_setopt(curl.get(), CURLOPT_FORBID_REUSE, 1L);
-        curl_easy_setopt(curl.get(), CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_0);
         curl_easy_setopt(curl.get(), CURLOPT_POST, 1L);
         curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDS, buffer.GetString());
         curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDSIZE, buffer.GetSize());
