@@ -691,6 +691,8 @@ public:
                 if (big_block.has_value())
                 {
                     int left_size = big_block->sizeX / 2;
+                    if (3 < left_size)
+                        left_size = 3;
                     int right_size = big_block->sizeX - left_size;
 
                     std::optional<CBlock> left_block;
@@ -747,7 +749,7 @@ public:
 
             if (current_big_block_x < 3500 && current_big_block_y < 3500)
             {
-                auto block_size = 14;
+                auto block_size = 15;
                 std::optional<CBlock> block;
                 while (!block.has_value())
                     block = post_explore(current_big_block_x, current_big_block_y, block_size, 1);
