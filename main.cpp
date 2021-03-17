@@ -907,7 +907,7 @@ int main()
 
     hardcode::AddPredefinedBlocks(blocks_mutex, blocks);
 
-    auto max_threads = 42;
+    auto max_threads = 30;
 
     auto threads = std::vector<std::thread>{ max_threads };
 
