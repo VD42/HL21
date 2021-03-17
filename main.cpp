@@ -99,6 +99,7 @@ public:
 private:
 	std::vector<std::optional<CLicense>> m_licenses;
 	std::mutex m_mutex;
+    std::atomic_int m_count = 0;
 };
 
 struct CAnswerInfo final
@@ -833,7 +834,7 @@ bool CLicenseManager::update_licenses(CClient& client)
     if (!working)
         return false;
 
-    const auto use_free = (std::rand() % 10 < 4);
+    const auto use_free = (m_count++ % 10 < 4);
 
     std::optional<CLicense> license;
     while (!license.has_value())
