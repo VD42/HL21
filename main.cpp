@@ -512,6 +512,8 @@ public:
         int enough_money = 500;
         int min_exchange_level = 2;
 
+        std::vector<std::thread> threads{ 1000 };
+
         while (true)
         {
             if (!i_ve_enough)
@@ -570,7 +572,7 @@ public:
                             {
                                 for (auto const& treasure : surprise.value())
                                 {
-                                    std::thread([m_client = *this, treasure] () mutable {
+                                    threads.emplace_back([m_client = *this, treasure] () mutable {
                                         {
                                             auto lock = std::unique_lock{ global::coin_mutex };
                                             ++global::cashes;
@@ -588,7 +590,7 @@ public:
                                                 global::max_coin_id = max_m;
                                             --global::cashes;
                                         }
-                                    }).detach();
+                                    });
                                 }
                             }
                             block->amount -= surprise->size();
