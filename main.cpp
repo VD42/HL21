@@ -69,9 +69,9 @@ class CClient;
 class CLicenseManager final
 {
 public:
-    std::optional<int> get_license(CClient & client);
+    std::optional<int> get_license(CClient const& client);
     void use_license(int id);
-    bool update_licenses(CClient & client);
+    bool update_licenses(CClient const& client);
 
 private:
 	std::vector<std::optional<CLicense>> m_licenses;
@@ -172,7 +172,7 @@ public:
 #endif
     }
 
-    void stats(CClient & client)
+    void stats(CClient const& client)
     {
 
         while (true)
@@ -205,9 +205,8 @@ class CClient final
 {
 public:
     CClient(CURLSH * curl_share, std::string schema, std::string host, std::string port, CStats & stats)
-        : m_curl_share(curl_share), m_stats(stats)
+        : m_curl_share(curl_share), m_base(schema + "://" + host + ":" + port), m_stats(stats)
     {
-        m_base = schema + "://" + host + ":" + port;
     }
 
     CClient(CClient const& other)
@@ -215,7 +214,7 @@ public:
     {
     }
 
-    std::optional<CBlock> post_explore(int posX, int posY, int sizeX, int sizeY)
+    std::optional<CBlock> post_explore(int posX, int posY, int sizeX, int sizeY) const
     {
         const auto start_time = CStats::now();
 
@@ -289,7 +288,7 @@ public:
         return block;
     }
 
-    std::optional<CLicense> post_license(std::vector<int> coins)
+    std::optional<CLicense> post_license(std::vector<int> coins) const
     {
         const auto start_time = CStats::now();
 
@@ -362,7 +361,7 @@ public:
         };
     }
 
-    std::optional<std::vector<std::string>> post_dig(int licenseID, int posX, int posY, int depth)
+    std::optional<std::vector<std::string>> post_dig(int licenseID, int posX, int posY, int depth) const
     {
         const auto start_time = CStats::now();
 
@@ -436,7 +435,7 @@ public:
         return treasures;
     }
 
-    std::optional<std::vector<int>> post_cash(std::string treasure)
+    std::optional<std::vector<int>> post_cash(std::string treasure) const
     {
         const auto start_time = CStats::now();
 
@@ -504,7 +503,7 @@ public:
         std::mutex & big_blocks_mutex, std::vector<CBlock> & big_blocks,
         std::mutex & blocks_mutex, std::vector<CBlock> & blocks,
         CLicenseManager & lm
-    )
+    ) const
     {
         int current_big_block_x = 0;
         int current_big_block_y = index;
@@ -701,12 +700,12 @@ public:
     }
 
 private:
-    CURLSH * m_curl_share;
-    std::string m_base;
+    CURLSH * const m_curl_share;
+    const std::string m_base;
     CStats & m_stats;
 };
 
-std::optional<int> CLicenseManager::get_license(CClient & client)
+std::optional<int> CLicenseManager::get_license(CClient const& client)
 {
     {
         auto lock = std::unique_lock{ m_mutex };
@@ -750,7 +749,7 @@ void CLicenseManager::use_license(int id)
         }
 }
 
-bool CLicenseManager::update_licenses(CClient& client)
+bool CLicenseManager::update_licenses(CClient const& client)
 {
     bool working = false;
 
