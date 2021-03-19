@@ -50,18 +50,6 @@ struct CBlock final
     }
 };
 
-namespace hardcode
-{
-	void AddPredefinedBlocks(std::mutex & blocks_mutex, std::vector<CBlock> & blocks)
-	{
-	}
-
-	bool IsPredefinedBlock(CBlock const& block)
-	{
-		return false;
-	}
-}
-
 struct CLicense final
 {
 	int id;
@@ -73,17 +61,6 @@ struct CLicense final
 	bool operator < (CLicense const& other) const
 	{
 		return !(digAllowed - digUsing < other.digAllowed - other.digUsing);
-	}
-};
-
-struct CTreasure final
-{
-	std::string id;
-	int depth;
-
-	bool operator < (CTreasure const& other) const
-	{
-		return depth < other.depth;
 	}
 };
 
@@ -126,11 +103,10 @@ public:
     CStats(
         std::mutex & big_blocks_mutex, std::vector<CBlock> & big_blocks,
         std::mutex & blocks_mutex, std::vector<CBlock> & blocks,
-        CLicenseManager & lm,
-        std::mutex & treasures_mutex, std::vector<CTreasure> & treasures
+        CLicenseManager & lm
     ) :
-        m_big_blocks_mutex(big_blocks_mutex), m_blocks_mutex(blocks_mutex), m_treasures_mutex(treasures_mutex),
-        m_big_blocks(big_blocks), m_blocks(blocks), m_treasures(treasures), m_lm(lm)
+        m_big_blocks_mutex(big_blocks_mutex), m_blocks_mutex(blocks_mutex),
+        m_big_blocks(big_blocks), m_blocks(blocks), m_lm(lm)
     {
 #ifdef _STATS
         std::cout << prefix() << "Start" << std::endl;
@@ -166,11 +142,6 @@ public:
             auto lock = std::unique_lock{ m_blocks_mutex };
             blocks = m_blocks.size();
         }
-        int treausures = 0;
-        {
-            auto lock = std::unique_lock{ m_treasures_mutex };
-            treausures = m_treasures.size();
-        }
         int coins = 0;
         int cashes = 0;
         {
@@ -195,7 +166,6 @@ public:
         }
         std::cout << "    TOTAL: " << m_total << " (" << std::chrono::duration_cast<std::chrono::milliseconds>(total_time).count() << ")" << std::endl;
         std::cout << "    COINS: " << coins << std::endl;
-        std::cout << "    TREASURES: " << treausures << std::endl;
         std::cout << "    BLOCKS: " << blocks << std::endl;
         std::cout << "    BIG BLOCKS: " << big_blocks << std::endl;
         std::cout << "    CASHES: " << cashes << std::endl;
@@ -224,11 +194,9 @@ private:
 
     std::mutex & m_big_blocks_mutex;
     std::mutex & m_blocks_mutex;
-    std::mutex & m_treasures_mutex;
 
     std::vector<CBlock> & m_big_blocks;
     std::vector<CBlock> & m_blocks;
-    std::vector<CTreasure> & m_treasures;
 
     CLicenseManager & m_lm;
 };
@@ -535,8 +503,7 @@ public:
         int index, int count,
         std::mutex & big_blocks_mutex, std::vector<CBlock> & big_blocks,
         std::mutex & blocks_mutex, std::vector<CBlock> & blocks,
-        CLicenseManager & lm,
-        std::mutex & treasures_mutex, std::vector<CTreasure> & treasures
+        CLicenseManager & lm
     )
     {
         int current_big_block_x = 0;
@@ -554,53 +521,6 @@ public:
                 if (enough_money <= global::max_coin_id)
                     i_ve_enough = true;
             }
-
-            // Treasures
-
-            bool found_treasure = false;
-            {
-                std::optional<CTreasure> treasure;
-                {
-                    auto lock = std::unique_lock{ treasures_mutex };
-                    if (0 < treasures.size())
-                    {
-                        treasure = treasures.back();
-                        treasures.pop_back();
-                    }
-                }
-                if (treasure.has_value())
-                {
-                    if (i_ve_enough && treasure->depth < min_exchange_level)
-                        continue;
-					std::thread([m_client = *this, m_treasure = treasure.value()] () mutable {
-                        {
-                            auto lock = std::unique_lock{ global::coin_mutex };
-                            ++global::cashes;
-                        }
-                        std::optional<std::vector<int>> money;
-                        while (!money.has_value())
-                            money = m_client.post_cash(m_treasure.id);
-                        int max_m = -1;
-                        for (auto m : money.value())
-                            if (max_m < m)
-                                max_m = m;
-						{
-							auto lock = std::unique_lock{ global::coin_mutex };
-							if (global::max_coin_id < max_m)
-								global::max_coin_id = max_m;
-                            --global::cashes;
-						}
-                    }).detach();
-                    found_treasure = true;
-                }
-            }
-            if (found_treasure)
-                continue;
-
-            // Licenses
-
-            //if (lm.update_licenses(this))
-            //    continue;
 
             // Digs
 
@@ -645,16 +565,32 @@ public:
                             break;
                         }
 
-						//if (h == 0 && !hardcode::IsPredefinedBlock(block) && block.amount == 2)
-						//	std::cout << "AddPredefinedBlock(blocks, new Block() { posX = " << block.posX << ", posY = " << block.posY << ", sizeX = 1, sizeY = 1, amount = " << block.amount + " });" << std::endl;
-
                         if (0 < surprise->size())
                         {
+                            if (!i_ve_enough || min_exchange_level <= h)
                             {
-                                auto lock = std::unique_lock{ treasures_mutex };
                                 for (auto const& treasure : surprise.value())
-                                    treasures.push_back(CTreasure{ treasure, h });
-                                std::sort(treasures.begin(), treasures.end());
+                                {
+                                    std::thread([m_client = *this, treasure] () mutable {
+                                        {
+                                            auto lock = std::unique_lock{ global::coin_mutex };
+                                            ++global::cashes;
+                                        }
+                                        std::optional<std::vector<int>> money;
+                                        while (!money.has_value())
+                                            money = m_client.post_cash(treasure);
+                                        int max_m = -1;
+                                        for (auto m : money.value())
+                                            if (max_m < m)
+                                                max_m = m;
+                                        {
+                                            auto lock = std::unique_lock{ global::coin_mutex };
+                                            if (global::max_coin_id < max_m)
+                                                global::max_coin_id = max_m;
+                                            --global::cashes;
+                                        }
+                                    }).detach();
+                                }
                             }
                             block->amount -= surprise->size();
                         }
@@ -706,12 +642,9 @@ public:
                     {
                         if (left_block->sizeX == 1)
                         {
-                            if (!hardcode::IsPredefinedBlock(left_block.value()))
-                            {
-                                auto lock = std::unique_lock{ blocks_mutex };
-                                blocks.push_back(left_block.value());
-                                std::sort(blocks.begin(), blocks.end());
-                            }
+                            auto lock = std::unique_lock{ blocks_mutex };
+                            blocks.push_back(left_block.value());
+                            std::sort(blocks.begin(), blocks.end());
                         }
                         else
                         {
@@ -725,12 +658,9 @@ public:
                     {
                         if (right_block.sizeX == 1)
                         {
-                            if (!hardcode::IsPredefinedBlock(right_block))
-                            {
-                                auto lock = std::unique_lock{ blocks_mutex };
-                                blocks.push_back(right_block);
-                                std::sort(blocks.begin(), blocks.end());
-                            }
+                            auto lock = std::unique_lock{ blocks_mutex };
+                            blocks.push_back(right_block);
+                            std::sort(blocks.begin(), blocks.end());
                         }
                         else
                         {
@@ -891,22 +821,17 @@ int main()
     
     std::mutex big_blocks_mutex;
     std::mutex blocks_mutex;
-    std::mutex treasures_mutex;
 
     std::vector<CBlock> big_blocks;
     std::vector<CBlock> blocks;
-    std::vector<CTreasure> treasures;
 
     CLicenseManager lm;
 
     auto stats = CStats{
         big_blocks_mutex, big_blocks,
         blocks_mutex, blocks,
-        lm,
-        treasures_mutex, treasures
+        lm
     };
-
-    hardcode::AddPredefinedBlocks(blocks_mutex, blocks);
 
     auto max_threads = 30;
 
@@ -920,8 +845,7 @@ int main()
                 m_index, max_threads,
 				big_blocks_mutex, big_blocks,
 				blocks_mutex, blocks,
-				lm,
-				treasures_mutex, treasures
+				lm
 			);
 		}));
     }
