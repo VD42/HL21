@@ -428,6 +428,7 @@ public:
 
         auto length = document.Size();
         auto treasures = std::vector<std::string>{};
+        treasures.reserve(length);
 
         for (int i = 0; i < length; ++i)
             treasures.push_back(std::string{ document[i].GetString(), document[i].GetStringLength() });
@@ -491,6 +492,7 @@ public:
 
         auto length = document.Size();
         auto money = std::vector<int>{};
+        money.reserve(length);
 
         for (int i = 0; i < length; ++i)
             money.push_back(document[i].GetInt());
@@ -512,7 +514,8 @@ public:
         int enough_money = 500;
         int min_exchange_level = 2;
 
-        std::vector<std::thread> threads{ 1000 };
+        std::vector<std::thread> threads;
+        threads.reserve(1000);
 
         while (true)
         {
@@ -834,9 +837,10 @@ int main()
         lm
     };
 
-    auto max_threads = 30;
+    const auto max_threads = 30;
 
-    auto threads = std::vector<std::thread>{ max_threads };
+    std::vector<std::thread> threads;
+    threads.reserve(max_threads);
 
     for (int i = 0; i < max_threads; ++i)
     {
