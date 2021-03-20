@@ -684,7 +684,7 @@ public:
 
             if (current_big_block_x < 3500 && current_big_block_y < 3500)
             {
-                auto block_size = 15;
+                auto block_size = 31;
                 std::optional<CBlock> block;
                 while (!block.has_value())
                     block = post_explore(current_big_block_x, current_big_block_y, block_size, 1);
