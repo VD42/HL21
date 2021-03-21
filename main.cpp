@@ -13,6 +13,7 @@
 #include <thread>
 #include <iostream>
 #include <array>
+#include <future>
 
 #define _STATS
 
@@ -265,8 +266,7 @@ public:
         long code = 0;
         curl_easy_getinfo(curl.get(), CURLINFO_HTTP_CODE, &code);
 
-        if (code != 200 || sizeX * sizeY != 1)
-            m_stats.answer("/explore (" + std::to_string(sizeX * sizeY) + ")", code, CStats::now() - start_time);
+        m_stats.answer("/explore (" + std::to_string(sizeX * sizeY) + ")", code, CStats::now() - start_time);
 
         if (code != 200)
             return std::nullopt;
@@ -274,18 +274,13 @@ public:
         rapidjson::Document document;
         document.Parse(out_buffer.c_str(), out_buffer.length());
 
-        auto block = CBlock {
+        return CBlock {
             document["area"]["posX"].GetInt(),
             document["area"]["posY"].GetInt(),
             document["area"]["sizeX"].GetInt(),
             document["area"]["sizeY"].GetInt(),
             document["amount"].GetInt()
         };
-
-        if (sizeX * sizeY == 1)
-            m_stats.answer("/explore (" + std::to_string(sizeX * sizeY) + ", " + std::to_string(block.amount) + ")", code, CStats::now() - start_time);
-
-        return block;
     }
 
     std::optional<CLicense> post_license(std::vector<int> coins) const
@@ -514,11 +509,18 @@ public:
         int enough_money = 500;
         int min_exchange_level = 2;
 
-        std::vector<std::thread> threads;
-        threads.reserve(1000);
+        std::vector<std::future<void>> futures;
+        futures.reserve(1000);
 
         while (true)
         {
+            for (size_t i = 0; i < futures.size(); ++i)
+                if (futures[i].wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
+                {
+                    futures.erase(futures.begin() + i);
+                    --i;
+                }
+
             if (!i_ve_enough)
             {
                 auto lock = std::unique_lock{ global::coin_mutex };
@@ -575,7 +577,7 @@ public:
                             {
                                 for (auto const& treasure : surprise.value())
                                 {
-                                    threads.emplace_back([m_client = *this, treasure] () mutable {
+                                    futures.push_back(std::async(std::launch::async, [m_client = *this, treasure] () mutable {
                                         {
                                             auto lock = std::unique_lock{ global::coin_mutex };
                                             ++global::cashes;
@@ -593,7 +595,7 @@ public:
                                                 global::max_coin_id = max_m;
                                             --global::cashes;
                                         }
-                                    });
+                                    }));
                                 }
                             }
                             block->amount -= surprise->size();
