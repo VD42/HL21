@@ -143,10 +143,14 @@ public:
             auto lock = std::unique_lock{ m_blocks_mutex };
             blocks = m_blocks.size();
         }
+        int max_coins = 0;
+        int used_coins = 0;
         int coins = 0;
         int cashes = 0;
         {
             auto lock = std::unique_lock{ global::coin_mutex };
+            max_coins = global::max_coin_id;
+            used_coins = global::current_coin_id;
             coins = global::max_coin_id - global::current_coin_id;
             cashes = global::cashes;
         }
@@ -166,7 +170,7 @@ public:
             }
         }
         std::cout << "    TOTAL: " << m_total << " (" << std::chrono::duration_cast<std::chrono::milliseconds>(total_time).count() << ")" << std::endl;
-        std::cout << "    COINS: " << coins << std::endl;
+        std::cout << "    COINS: " << coins << " (" << max_coins << " - " << used_coins << ")" << std::endl;
         std::cout << "    BLOCKS: " << blocks << std::endl;
         std::cout << "    BIG BLOCKS: " << big_blocks << std::endl;
         std::cout << "    CASHES: " << cashes << std::endl;
