@@ -509,10 +509,6 @@ public:
         int current_big_block_x = 0;
         int current_big_block_y = index;
 
-        bool i_ve_enough = false;
-        int enough_money = 500;
-        int min_exchange_level = 2;
-
         std::vector<std::future<void>> futures;
         futures.reserve(1000);
 
@@ -524,13 +520,6 @@ public:
                     futures.erase(futures.begin() + i);
                     --i;
                 }
-
-            if (!i_ve_enough)
-            {
-                auto lock = std::unique_lock{ global::coin_mutex };
-                if (enough_money <= global::max_coin_id)
-                    i_ve_enough = true;
-            }
 
             // Digs
 
@@ -577,7 +566,18 @@ public:
 
                         if (0 < surprise->size())
                         {
-                            if (!i_ve_enough || min_exchange_level <= h)
+                            if ([&] () {
+                                int cashes = 0;
+                                {
+                                    auto lock = std::unique_lock{ global::coin_mutex };
+                                    cashes = global::cashes;
+                                }
+                                if (cashes <= 5)
+                                    return true;
+                                if (cashes <= 10)
+                                    return (1 <= h);
+                                return (2 <= h);
+                            }())
                             {
                                 for (auto const& treasure : surprise.value())
                                 {
