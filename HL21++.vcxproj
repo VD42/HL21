@@ -79,26 +79,19 @@
   </ItemGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)curl\include;$(SolutionDir)curl\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <Verbose>true</Verbose>
-      <PreprocessorDefinitions>HAVE_CONFIG_H;BUILDING_LIBCURL;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CppLanguageStandard>c++17</CppLanguageStandard>
     </ClCompile>
     <Link>
-      <VerboseOutput>true</VerboseOutput>
       <LibraryDependencies>curl;pthread</LibraryDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)curl\include;$(SolutionDir)curl\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <Verbose>true</Verbose>
-      <PreprocessorDefinitions>HAVE_CONFIG_H;BUILDING_LIBCURL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CppLanguageStandard>c++17</CppLanguageStandard>
     </ClCompile>
     <Link>
       <LibraryDependencies>curl;pthread</LibraryDependencies>
-      <VerboseOutput>true</VerboseOutput>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

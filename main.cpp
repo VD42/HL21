@@ -819,8 +819,7 @@ int main()
         auto * mutexes = static_cast<decltype(share_mutexes)*>(userptr);
         mutexes->at(data).unlock();
     }));
-    // Looks like a bug in CURL
-    //curl_share_setopt(curl_share, CURLSHOPT_SHARE, curl_lock_data::CURL_LOCK_DATA_CONNECT);
+    curl_share_setopt(curl_share, CURLSHOPT_SHARE, curl_lock_data::CURL_LOCK_DATA_CONNECT);
     curl_share_setopt(curl_share, CURLSHOPT_SHARE, curl_lock_data::CURL_LOCK_DATA_COOKIE);
     curl_share_setopt(curl_share, CURLSHOPT_SHARE, curl_lock_data::CURL_LOCK_DATA_DNS);
     curl_share_setopt(curl_share, CURLSHOPT_SHARE, curl_lock_data::CURL_LOCK_DATA_PSL);
