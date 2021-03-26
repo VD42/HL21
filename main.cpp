@@ -572,9 +572,9 @@ public:
                                     auto lock = std::unique_lock{ global::coin_mutex };
                                     cashes = global::cashes;
                                 }
-                                if (cashes <= 5)
+                                if (cashes <= 0)
                                     return true;
-                                if (cashes <= 10)
+                                if (cashes <= 1)
                                     return (1 <= h);
                                 return (2 <= h);
                             }())
