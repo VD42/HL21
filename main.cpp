@@ -121,7 +121,7 @@ public:
     {
         ++m_total;
         m_in_process_costs -= cost;
-        if (code != 0)
+        if (code != 0 && !(method == "/cash" && code == 503))
             m_sum_costs += cost;
 
         auto lock = std::unique_lock(m_mutex);
@@ -132,7 +132,7 @@ public:
             m_answers[method][code].min_time = duration;
         if (m_answers[method][code].max_time < duration)
             m_answers[method][code].max_time = duration;
-        if (code != 0)
+        if (code != 0 && !(method == "/cash" && code == 503))
             m_answers[method][code].costs += cost;
     }
 
@@ -162,6 +162,7 @@ public:
 
         std::cout << prefix() << "Stats:" << std::endl;
         auto total_time = std::chrono::high_resolution_clock::duration::zero();
+        auto license_wait = std::chrono::high_resolution_clock::duration::zero();
         {
             auto lock = std::unique_lock{ m_mutex };
             for (auto const& answer : m_answers)
@@ -169,10 +170,11 @@ public:
 				std::cout << "    " << answer.first << std::endl;
                 for (auto const& status : answer.second)
                 {
-					std::cout << "        " << status.first << ": " << status.second.count << " (" << std::chrono::duration_cast<std::chrono::milliseconds>(status.second.min_time).count() << " ... " << (std::chrono::duration_cast<std::chrono::milliseconds>(status.second.time).count() / (0 < status.second.count ? status.second.count : 1)) << " ... " << std::chrono::duration_cast<std::chrono::milliseconds>(status.second.max_time).count() << ") / " << status.second.costs << std::endl;
+					std::cout << "        " << status.first << ": " << status.second.count << " (" << std::chrono::duration_cast<std::chrono::milliseconds>(status.second.min_time).count() << " ... " << (std::chrono::duration_cast<std::chrono::milliseconds>(status.second.time).count() / (0 < status.second.count ? status.second.count : 1)) << " ... " << std::chrono::duration_cast<std::chrono::milliseconds>(status.second.max_time).count() << ") / " << status.second.costs << " (" << (status.second.costs / (double)std::max(static_cast<int>(m_sum_costs), 1)) << ")" << std::endl;
 					total_time += status.second.time;
                 }
             }
+            license_wait = m_license_wait;
         }
         std::cout << "    TOTAL: " << m_total << " (" << std::chrono::duration_cast<std::chrono::milliseconds>(total_time).count() << ")" << std::endl;
         std::cout << "    COSTS: " << m_in_process_costs << " (" << m_sum_costs << ")" << std::endl;
@@ -180,6 +182,7 @@ public:
         std::cout << "    BLOCKS: " << blocks << std::endl;
         std::cout << "    BIG BLOCKS: " << big_blocks << std::endl;
         std::cout << "    CASHES: " << cashes << std::endl;
+        std::cout << "    LICENSE WAIT: " << std::chrono::duration_cast<std::chrono::milliseconds>(license_wait).count() << std::endl;
     }
 
     void stats(CClient const& client)
@@ -190,6 +193,17 @@ public:
 			std::this_thread::sleep_for(std::chrono::seconds(10));
             print();
         }
+    }
+
+    int in_process_costs()
+    {
+        return m_in_process_costs;
+    }
+
+    void license_wait(std::chrono::high_resolution_clock::duration duration)
+    {
+        auto lock = std::unique_lock(m_mutex);
+        m_license_wait += duration;
     }
 
 private:
@@ -208,6 +222,8 @@ private:
 
     std::atomic_int m_in_process_costs = 0;
     std::atomic_int m_sum_costs = 0;
+
+    std::chrono::high_resolution_clock::duration m_license_wait = std::chrono::high_resolution_clock::duration::zero();
 };
 
 class CClient final
@@ -540,6 +556,13 @@ public:
                     --i;
                 }
 
+            if (2000 < m_stats.in_process_costs())
+            {
+                if (!lm.update_licenses(*this))
+                    std::this_thread::sleep_for(std::chrono::microseconds(100));
+                continue;
+            }
+
             // Digs
 
             bool found_block = false;
@@ -560,7 +583,9 @@ public:
                     for (int h = block->last_h; h < max_h && 0 < block->amount; ++h)
                     {
                         block->last_h = h;
+                        const auto start_license_wait = CStats::now();
                         const auto license_id = lm.get_license(*this);
+                        m_stats.license_wait(CStats::now() - start_license_wait);
                         if (!license_id.has_value())
                         {
                             no_license = true;
