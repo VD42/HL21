@@ -591,7 +591,7 @@ public:
             if (m_stats.free_costs() <= 0)
             {
                 if (!lm.update_licenses(*this))
-                    std::this_thread::sleep_for(std::chrono::microseconds(100));
+                    std::this_thread::sleep_for(std::chrono::microseconds(50));
                 continue;
             }
 
