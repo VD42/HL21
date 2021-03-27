@@ -15,8 +15,6 @@
 #include <array>
 #include <future>
 
-#define _STATS
-
 namespace global
 {
 	std::mutex coin_mutex;
@@ -86,6 +84,7 @@ struct CAnswerInfo final
     std::chrono::high_resolution_clock::duration time = std::chrono::high_resolution_clock::duration::zero();
     std::chrono::high_resolution_clock::duration min_time = std::chrono::high_resolution_clock::duration::max();
     std::chrono::high_resolution_clock::duration max_time = std::chrono::high_resolution_clock::duration::min();
+    int costs = 0;
 };
 
 class CStats final
@@ -109,15 +108,21 @@ public:
         m_big_blocks_mutex(big_blocks_mutex), m_blocks_mutex(blocks_mutex),
         m_big_blocks(big_blocks), m_blocks(blocks), m_lm(lm)
     {
-#ifdef _STATS
         std::cout << prefix() << "Start" << std::endl;
-#endif
     }
 
-    void answer(std::string method, long code, std::chrono::high_resolution_clock::duration duration)
+    std::chrono::high_resolution_clock::time_point start(int cost)
     {
-#ifdef _STATS
+        m_in_process_costs += cost;
+        return CStats::now();
+    }
+
+    void answer(int cost, std::string method, long code, std::chrono::high_resolution_clock::duration duration)
+    {
         ++m_total;
+        m_in_process_costs -= cost;
+        if (code != 0)
+            m_sum_costs += cost;
 
         auto lock = std::unique_lock(m_mutex);
 
@@ -127,12 +132,12 @@ public:
             m_answers[method][code].min_time = duration;
         if (m_answers[method][code].max_time < duration)
             m_answers[method][code].max_time = duration;
-#endif
+        if (code != 0)
+            m_answers[method][code].costs += cost;
     }
 
     void print()
     {
-#ifdef _STATS
         int big_blocks = 0;
         {
             auto lock = std::unique_lock{ m_big_blocks_mutex };
@@ -164,17 +169,17 @@ public:
 				std::cout << "    " << answer.first << std::endl;
                 for (auto const& status : answer.second)
                 {
-					std::cout << "        " << status.first << ": " << status.second.count << " (" << std::chrono::duration_cast<std::chrono::milliseconds>(status.second.min_time).count() << " ... " << (std::chrono::duration_cast<std::chrono::milliseconds>(status.second.time).count() / (0 < status.second.count ? status.second.count : 1)) << " ... " << std::chrono::duration_cast<std::chrono::milliseconds>(status.second.max_time).count() << ")" << std::endl;
+					std::cout << "        " << status.first << ": " << status.second.count << " (" << std::chrono::duration_cast<std::chrono::milliseconds>(status.second.min_time).count() << " ... " << (std::chrono::duration_cast<std::chrono::milliseconds>(status.second.time).count() / (0 < status.second.count ? status.second.count : 1)) << " ... " << std::chrono::duration_cast<std::chrono::milliseconds>(status.second.max_time).count() << ") / " << status.second.costs << std::endl;
 					total_time += status.second.time;
                 }
             }
         }
         std::cout << "    TOTAL: " << m_total << " (" << std::chrono::duration_cast<std::chrono::milliseconds>(total_time).count() << ")" << std::endl;
+        std::cout << "    COSTS: " << m_in_process_costs << " (" << m_sum_costs << ")" << std::endl;
         std::cout << "    COINS: " << coins << " (" << max_coins << " - " << used_coins << ")" << std::endl;
         std::cout << "    BLOCKS: " << blocks << std::endl;
         std::cout << "    BIG BLOCKS: " << big_blocks << std::endl;
         std::cout << "    CASHES: " << cashes << std::endl;
-#endif
     }
 
     void stats(CClient const& client)
@@ -183,11 +188,7 @@ public:
         while (true)
         {
 			std::this_thread::sleep_for(std::chrono::seconds(10));
-#ifdef _STATS
             print();
-            //Console.Error.WriteLine("Server status: ");
-            //Console.Error.WriteLine(client.get_health_check());
-#endif
         }
     }
 
@@ -204,6 +205,9 @@ private:
     std::vector<CBlock> & m_blocks;
 
     CLicenseManager & m_lm;
+
+    std::atomic_int m_in_process_costs = 0;
+    std::atomic_int m_sum_costs = 0;
 };
 
 class CClient final
@@ -221,7 +225,17 @@ public:
 
     std::optional<CBlock> post_explore(int posX, int posY, int sizeX, int sizeY) const
     {
-        const auto start_time = CStats::now();
+        const int explore_cost = [&] () {
+            const auto blocks = sizeX * sizeY;
+            if (blocks < 4) return 1;
+            if (blocks < 8) return 2;
+            if (blocks < 16) return 3;
+            if (blocks < 32) return 4;
+            if (blocks < 64) return 5;
+            if (blocks < 128) return 6;
+            return 7;
+        }() * 10;
+        const auto start_time = m_stats.start(explore_cost);
 
         rapidjson::StringBuffer buffer;
         rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
@@ -263,14 +277,14 @@ public:
 
         if (curl_code != CURLE_OK)
         {
-            m_stats.answer("/explore (" + std::to_string(sizeX * sizeY) + ")", 0, CStats::now() - start_time);
+            m_stats.answer(explore_cost, "/explore (" + std::to_string(sizeX * sizeY) + ")", 0, CStats::now() - start_time);
             return std::nullopt;
         }
 
         long code = 0;
         curl_easy_getinfo(curl.get(), CURLINFO_HTTP_CODE, &code);
 
-        m_stats.answer("/explore (" + std::to_string(sizeX * sizeY) + ")", code, CStats::now() - start_time);
+        m_stats.answer(explore_cost, "/explore (" + std::to_string(sizeX * sizeY) + ")", code, CStats::now() - start_time);
 
         if (code != 200)
             return std::nullopt;
@@ -289,7 +303,8 @@ public:
 
     std::optional<CLicense> post_license(std::vector<int> coins) const
     {
-        const auto start_time = CStats::now();
+        constexpr int license_cost = 0;
+        const auto start_time = m_stats.start(license_cost);
 
         rapidjson::StringBuffer buffer;
         rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
@@ -332,20 +347,20 @@ public:
 
         if (coins.size() == 0 && curl_code == CURLE_OPERATION_TIMEDOUT)
         {
-            m_stats.answer("/licenses (" + std::to_string(coins.size()) + ")", 201, CStats::now() - start_time);
+            m_stats.answer(license_cost, "/licenses (" + std::to_string(coins.size()) + ")", 201, CStats::now() - start_time);
             return std::nullopt;
         }
 
         if (curl_code != CURLE_OK)
         {
-            m_stats.answer("/licenses (" + std::to_string(coins.size()) + ")", 0, CStats::now() - start_time);
+            m_stats.answer(license_cost, "/licenses (" + std::to_string(coins.size()) + ")", 0, CStats::now() - start_time);
             return std::nullopt;
         }
 
         long code = 0;
         curl_easy_getinfo(curl.get(), CURLINFO_HTTP_CODE, &code);
 
-        m_stats.answer("/licenses (" + std::to_string(coins.size()) + ")", code, CStats::now() - start_time);
+        m_stats.answer(license_cost, "/licenses (" + std::to_string(coins.size()) + ")", code, CStats::now() - start_time);
 
         if (code != 200)
             return std::nullopt;
@@ -362,7 +377,10 @@ public:
 
     std::optional<std::vector<std::string>> post_dig(int licenseID, int posX, int posY, int depth) const
     {
-        const auto start_time = CStats::now();
+        const int dig_cost = [&] () {
+            return 20 + (depth - 1) * 2;
+        }();
+        const auto start_time = m_stats.start(dig_cost);
 
         rapidjson::StringBuffer buffer;
         rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
@@ -404,14 +422,14 @@ public:
 
         if (curl_code != CURLE_OK)
         {
-            m_stats.answer("/dig", 0, CStats::now() - start_time);
+            m_stats.answer(dig_cost, "/dig", 0, CStats::now() - start_time);
             return std::nullopt;
         }
 
         long code = 0;
         curl_easy_getinfo(curl.get(), CURLINFO_HTTP_CODE, &code);
 
-        m_stats.answer("/dig", code, CStats::now() - start_time);
+        m_stats.answer(dig_cost, "/dig", code, CStats::now() - start_time);
 
         if (code == 404)
             return std::vector<std::string>{};
@@ -437,7 +455,8 @@ public:
 
     std::optional<std::vector<int>> post_cash(std::string treasure) const
     {
-        const auto start_time = CStats::now();
+        constexpr int cash_cost = 20 * 10;
+        const auto start_time = m_stats.start(cash_cost);
 
         rapidjson::StringBuffer buffer;
         rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
@@ -474,14 +493,14 @@ public:
 
         if (curl_code != CURLE_OK)
         {
-            m_stats.answer("/cash", 0, CStats::now() - start_time);
+            m_stats.answer(cash_cost, "/cash", 0, CStats::now() - start_time);
             return std::nullopt;
         }
 
         long code = 0;
         curl_easy_getinfo(curl.get(), CURLINFO_HTTP_CODE, &code);
 
-        m_stats.answer("/cash", code, CStats::now() - start_time);
+        m_stats.answer(cash_cost, "/cash", code, CStats::now() - start_time);
 
         if (code != 200)
             return std::nullopt;
