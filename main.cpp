@@ -114,6 +114,10 @@ public:
     std::chrono::high_resolution_clock::time_point start(int cost)
     {
         m_in_process_costs += cost;
+        {
+            auto lock = std::unique_lock(m_mutex);
+            m_free_costs -= static_cast<int64_t>(cost) * 100;
+        }
         return CStats::now();
     }
 
@@ -122,7 +126,16 @@ public:
         ++m_total;
         m_in_process_costs -= cost;
         if (code != 0 && !(method == "/cash" && code == 503))
+        {
             m_sum_costs += cost;
+        }
+        else
+        {
+            auto lock = std::unique_lock(m_mutex);
+            m_free_costs += static_cast<int64_t>(cost) * 100;
+            if (std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::seconds(2)).count() < m_free_costs)
+                m_free_costs = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::seconds(2)).count();
+        }
 
         auto lock = std::unique_lock(m_mutex);
 
@@ -177,7 +190,7 @@ public:
             license_wait = m_license_wait;
         }
         std::cout << "    TOTAL: " << m_total << " (" << std::chrono::duration_cast<std::chrono::milliseconds>(total_time).count() << ")" << std::endl;
-        std::cout << "    COSTS: " << m_in_process_costs << " (" << m_sum_costs << ")" << std::endl;
+        std::cout << "    COSTS: " << m_in_process_costs << " / " << free_costs() << " (" << m_sum_costs << ")" << std::endl;
         std::cout << "    COINS: " << coins << " (" << max_coins << " - " << used_coins << ")" << std::endl;
         std::cout << "    BLOCKS: " << blocks << std::endl;
         std::cout << "    BIG BLOCKS: " << big_blocks << std::endl;
@@ -206,6 +219,16 @@ public:
         m_license_wait += duration;
     }
 
+    int free_costs()
+    {
+        auto lock = std::unique_lock{ m_mutex };
+        m_free_costs += std::chrono::duration_cast<std::chrono::microseconds>(CStats::now() - m_free_costs_last_update).count() * 2;
+        if (std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::seconds(2)).count() < m_free_costs)
+            m_free_costs = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::seconds(2)).count();
+        m_free_costs_last_update = CStats::now();
+        return static_cast<int>(m_free_costs / 100);
+    }
+
 private:
     std::atomic_int m_total = 0;
     std::mutex m_mutex;
@@ -222,6 +245,8 @@ private:
 
     std::atomic_int m_in_process_costs = 0;
     std::atomic_int m_sum_costs = 0;
+    int64_t m_free_costs = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::seconds(2)).count();
+    std::chrono::high_resolution_clock::time_point m_free_costs_last_update = CStats::now();
 
     std::chrono::high_resolution_clock::duration m_license_wait = std::chrono::high_resolution_clock::duration::zero();
 };
@@ -556,7 +581,14 @@ public:
                     --i;
                 }
 
-            if (2000 < m_stats.in_process_costs())
+            /*if (2000 < m_stats.in_process_costs())
+            {
+                if (!lm.update_licenses(*this))
+                    std::this_thread::sleep_for(std::chrono::microseconds(100));
+                continue;
+            }*/
+
+            if (m_stats.free_costs() <= 0)
             {
                 if (!lm.update_licenses(*this))
                     std::this_thread::sleep_for(std::chrono::microseconds(100));
