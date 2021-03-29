@@ -221,11 +221,24 @@ public:
 
     void stats(CClient const& client)
     {
-
+        auto prev = CStats::now();
         while (true)
         {
-			std::this_thread::sleep_for(std::chrono::seconds(10));
-            print();
+            if (prev + std::chrono::seconds(10) <= CStats::now())
+            {
+                print();
+                prev = CStats::now();
+            }
+
+            if (const auto now = CStats::now(); m_free_costs_last_update < now)
+            {
+                auto lock = std::unique_lock{ m_mutex };
+                m_free_costs += std::chrono::duration_cast<std::chrono::microseconds>(now - m_free_costs_last_update).count() * 2;
+                if (std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::seconds(2)).count() < m_free_costs)
+                    m_free_costs = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::seconds(2)).count();
+                m_free_costs_last_update = now;
+            }
+            std::this_thread::sleep_for(std::chrono::microseconds(1));
         }
     }
 
@@ -244,13 +257,6 @@ public:
 private:
     int free_costs_impl()
     {
-        if (const auto now = CStats::now(); m_free_costs_last_update < now)
-        {
-            m_free_costs += std::chrono::duration_cast<std::chrono::microseconds>(now - m_free_costs_last_update).count() * 2;
-            if (std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::seconds(2)).count() < m_free_costs)
-                m_free_costs = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::seconds(2)).count();
-            m_free_costs_last_update = now;
-        }
         return static_cast<int>(m_free_costs / 100);
     }
 
@@ -961,6 +967,7 @@ int main()
 				lm
 			);
 		}));
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
     {
