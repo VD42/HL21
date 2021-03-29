@@ -224,13 +224,9 @@ public:
         auto prev = CStats::now();
         while (true)
         {
-            if (prev + std::chrono::seconds(10) <= CStats::now())
-            {
-                print();
-                prev = CStats::now();
-            }
+            const auto now = CStats::now();
 
-            if (const auto now = CStats::now(); m_free_costs_last_update < now)
+            if (m_free_costs_last_update < now)
             {
                 auto lock = std::unique_lock{ m_mutex };
                 m_free_costs += std::chrono::duration_cast<std::chrono::microseconds>(now - m_free_costs_last_update).count() * 2;
@@ -238,6 +234,13 @@ public:
                     m_free_costs = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::seconds(2)).count();
                 m_free_costs_last_update = now;
             }
+
+            if (prev + std::chrono::seconds(10) <= now)
+            {
+                print();
+                prev = CStats::now();
+            }
+
             std::this_thread::sleep_for(std::chrono::microseconds(1));
         }
     }
