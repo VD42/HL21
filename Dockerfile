@@ -1,6 +1,7 @@
 FROM ubuntu
 RUN apt-get update && apt-get install -y g++ make
 WORKDIR /app
+COPY Dockerfile /app/Dockerfile
 COPY curl-7.75.0 /app/curl-7.75.0
 RUN /app/curl-7.75.0/configure --disable-dependency-tracking && make --directory=/app/curl-7.75.0 && make --directory=/app/curl-7.75.0 install && ldconfig
 COPY rapidjson /app/rapidjson
