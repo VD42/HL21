@@ -116,7 +116,7 @@ public:
         std::cout << prefix() << "Start" << std::endl;
     }
 
-    std::chrono::steady_clock::time_point start(int cost, bool blocked, CClient const& client)
+    std::chrono::steady_clock::time_point start(int64_t cost, bool blocked, CClient const& client)
     {
         if (blocked)
         {
@@ -124,26 +124,25 @@ public:
             {
                 {
                     auto lock = std::unique_lock{ m_mutex };
-                    auto costs = free_costs_impl();
-                    if (cost <= costs)
+                    if (cost <= m_free_costs)
                     {
-                        m_free_costs -= static_cast<int64_t>(cost) * 100;
+                        m_free_costs -= cost;
                         break;
                     }
                 }
                 if (!m_lm.update_licenses(client))
-                    std::this_thread::sleep_for(std::chrono::microseconds(50));
+                    std::this_thread::sleep_for(std::chrono::microseconds(1));
             }
         }
         else
         {
             auto lock = std::unique_lock{ m_mutex };
-            m_free_costs -= static_cast<int64_t>(cost) * 100;
+            m_free_costs -= cost;
         }
         return CStats::now();
     }
 
-    void answer(int cost, std::string method, long code, std::chrono::steady_clock::duration duration)
+    void answer(int64_t cost, std::string method, long code, std::chrono::steady_clock::duration duration)
     {
         ++m_total;
         if (code != 0 && !(method == "/cash" && code == 503))
@@ -153,9 +152,9 @@ public:
         else
         {
             auto lock = std::unique_lock{ m_mutex };
-            m_free_costs += static_cast<int64_t>(cost) * 100;
-            if (std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::seconds(2)).count() < m_free_costs)
-                m_free_costs = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::seconds(2)).count();
+            m_free_costs += cost;
+            if (std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::seconds(1)).count() < m_free_costs)
+                m_free_costs = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::seconds(1)).count();
         }
 
         auto lock = std::unique_lock{ m_mutex };
@@ -229,9 +228,9 @@ public:
             if (m_free_costs_last_update < now)
             {
                 auto lock = std::unique_lock{ m_mutex };
-                m_free_costs += std::chrono::duration_cast<std::chrono::microseconds>(now - m_free_costs_last_update).count() * 2;
-                if (std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::seconds(2)).count() < m_free_costs)
-                    m_free_costs = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::seconds(2)).count();
+                m_free_costs += std::chrono::duration_cast<std::chrono::microseconds>(now - m_free_costs_last_update).count();
+                if (std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::seconds(1)).count() < m_free_costs)
+                    m_free_costs = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::seconds(1)).count();
                 m_free_costs_last_update = now;
             }
 
@@ -254,15 +253,10 @@ public:
     int free_costs()
     {
         auto lock = std::unique_lock{ m_mutex };
-        return free_costs_impl();
+        return m_free_costs;
     }
 
 private:
-    int free_costs_impl()
-    {
-        return static_cast<int>(m_free_costs / 100);
-    }
-
     std::atomic_int m_total = 0;
     std::mutex m_mutex;
 
@@ -276,8 +270,8 @@ private:
 
     CLicenseManager & m_lm;
 
-    std::atomic_int m_sum_costs = 0;
-    int64_t m_free_costs = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::seconds(2)).count();
+    std::atomic_int64_t m_sum_costs = 0;
+    int64_t m_free_costs = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::seconds(1)).count();
     std::chrono::steady_clock::time_point m_free_costs_last_update = CStats::now();
 
     std::chrono::steady_clock::duration m_license_wait = std::chrono::steady_clock::duration::zero();
@@ -298,16 +292,16 @@ public:
 
     std::optional<CBlock> post_explore(int posX, int posY, int sizeX, int sizeY) const
     {
-        const int explore_cost = [&] () {
+        const int64_t explore_cost = [&] () {
             const auto blocks = sizeX * sizeY;
-            if (blocks < 4) return 1;
-            if (blocks < 8) return 2;
-            if (blocks < 16) return 3;
-            if (blocks < 32) return 4;
-            if (blocks < 64) return 5;
-            if (blocks < 128) return 6;
-            return 7;
-        }() * 10;
+            if (blocks < 4) return 500;
+            if (blocks < 8) return 1000;
+            if (blocks < 16) return 1500;
+            if (blocks < 32) return 2000;
+            if (blocks < 64) return 2500;
+            if (blocks < 128) return 3000;
+            return 3500;
+        }();
         const auto start_time = m_stats.start(explore_cost, true, *this);
 
         rapidjson::StringBuffer buffer;
@@ -376,7 +370,7 @@ public:
 
     std::optional<CLicense> post_license(std::vector<int> coins) const
     {
-        constexpr int license_cost = 0;
+        constexpr int64_t license_cost = 0;
         const auto start_time = m_stats.start(license_cost, false, *this);
 
         rapidjson::StringBuffer buffer;
@@ -450,8 +444,8 @@ public:
 
     std::optional<std::vector<std::string>> post_dig(int licenseID, int posX, int posY, int depth) const
     {
-        const int dig_cost = [&] () {
-            return 20 + (depth - 1) * 2;
+        const int64_t dig_cost = [&] () {
+            return 1000 + 100 * (depth - 1);
         }();
         const auto start_time = m_stats.start(dig_cost, true, *this);
 
@@ -528,7 +522,7 @@ public:
 
     std::optional<std::vector<int>> post_cash(std::string treasure) const
     {
-        constexpr int cash_cost = 20 * 10;
+        constexpr int64_t cash_cost = 10000;
         const auto start_time = m_stats.start(cash_cost, false, *this);
 
         rapidjson::StringBuffer buffer;
