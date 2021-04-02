@@ -59,6 +59,8 @@ struct CLicense final
 
 	bool operator < (CLicense const& other) const
 	{
+        if (digAllowed - digUsing == other.digAllowed - other.digUsing)
+            return !(digAllowed < other.digAllowed);
 		return !(digAllowed - digUsing < other.digAllowed - other.digUsing);
 	}
 };
@@ -879,7 +881,8 @@ bool CLicenseManager::update_licenses(CClient const& client)
     if (!working)
         return false;
 
-    const auto use_free = (m_count++ % 10 < 4);
+    //auto use_free = true;
+	const auto use_free = (m_count++ % 10 < 4);
 
     std::optional<CLicense> license;
     while (!license.has_value())
@@ -892,6 +895,8 @@ bool CLicenseManager::update_licenses(CClient const& client)
                 coins.push_back(++global::current_coin_id);
         }
         license = client.post_license(std::move(coins));
+        //if (!license.has_value())
+        //    use_free = false;
     }
 
     {

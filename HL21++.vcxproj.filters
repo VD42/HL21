@@ -125,4 +125,7 @@
       <UniqueIdentifier>{214fdfb0-430c-4e05-a29f-eec24ca7b31e}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="Dockerfile" />
+  </ItemGroup>
 </Project>
