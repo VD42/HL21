@@ -120,7 +120,7 @@ public:
 
     std::chrono::steady_clock::time_point start(int64_t cost, bool blocked, CClient const& client)
     {
-        if (blocked)
+        /*if (blocked)
         {
             while (true)
             {
@@ -132,15 +132,15 @@ public:
                         break;
                     }
                 }
-                if (!m_lm.update_licenses(client))
+                //if (!m_lm.update_licenses(client))
                     std::this_thread::sleep_for(std::chrono::microseconds(1));
             }
         }
         else
-        {
+        {*/
             auto lock = std::unique_lock{ m_mutex };
             m_free_costs -= cost;
-        }
+        //}
         return CStats::now();
     }
 
@@ -797,7 +797,7 @@ public:
 
             if (current_big_block_x < 3500 && current_big_block_y < 3500)
             {
-                auto block_size = 31;
+                constexpr auto block_size = 31;
                 std::optional<CBlock> block;
                 while (!block.has_value())
                     block = post_explore(current_big_block_x, current_big_block_y, block_size, 1);
@@ -838,20 +838,6 @@ std::optional<int> CLicenseManager::get_license(CClient const& client)
                 }
         }
     }
-    if (update_licenses(client))
-    {
-        auto lock = std::unique_lock{ m_mutex };
-        if (0 < m_licenses.size())
-        {
-            std::sort(m_licenses.begin(), m_licenses.end());
-            for (int i = m_licenses.size() - 1; 0 <= i; --i)
-                if (m_licenses[i].has_value() && m_licenses[i]->digUsing < m_licenses[i]->digAllowed)
-                {
-                    ++m_licenses[i]->digUsing;
-                    return m_licenses[i]->id;
-                }
-        }
-    }
     return std::nullopt;
 }
 
@@ -869,7 +855,7 @@ void CLicenseManager::use_license(int id)
 
 bool CLicenseManager::update_licenses(CClient const& client)
 {
-    bool working = false;
+    /*bool working = false;
 
     {
         auto lock = std::unique_lock{ m_mutex };
@@ -879,10 +865,10 @@ bool CLicenseManager::update_licenses(CClient const& client)
     }
 
     if (!working)
-        return false;
+        return false;*/
 
-    //auto use_free = true;
-	const auto use_free = (m_count++ % 10 < 4);
+    const auto use_free = true;
+	//const auto use_free = (m_count++ % 10 < 4);
 
     std::optional<CLicense> license;
     while (!license.has_value())
@@ -897,16 +883,19 @@ bool CLicenseManager::update_licenses(CClient const& client)
         license = client.post_license(std::move(coins));
         //if (!license.has_value())
         //    use_free = false;
+
+        if (!license.has_value())
+            return true;
     }
 
     {
         auto lock = std::unique_lock{ m_mutex };
-        for (int i = 0; i < m_licenses.size(); ++i)
+        /*for (int i = 0; i < m_licenses.size(); ++i)
             if (!m_licenses[i].has_value())
             {
                 m_licenses.erase(m_licenses.begin() + i);
                 break;
-            }
+            }*/
         m_licenses.push_back(license);
     }
 
@@ -953,10 +942,21 @@ int main()
         lm
     };
 
-    const auto max_threads = 30;
+    constexpr auto max_threads = 20;
+    constexpr auto license_threads = 10;
 
     std::vector<std::thread> threads;
-    threads.reserve(max_threads);
+    threads.reserve(max_threads + license_threads);
+
+    for (int i = 0; i < license_threads; ++i)
+    {
+        threads.push_back(std::thread([&] () {
+            auto client = CClient{ curl_share, schema, host, port, stats };
+            while (true)
+                if (!lm.update_licenses(client))
+                    std::this_thread::sleep_for(std::chrono::microseconds(1));
+        }));
+    }
 
     for (int i = 0; i < max_threads; ++i)
     {
