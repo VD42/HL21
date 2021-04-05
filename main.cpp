@@ -302,7 +302,10 @@ public:
             if (blocks < 32) return 2000;
             if (blocks < 64) return 2500;
             if (blocks < 128) return 3000;
-            return 3500;
+            if (blocks < 256) return 3500;
+            if (blocks < 512) return 4000;
+            if (blocks < 1024) return 4500;
+            return 5000;
         }();
         const auto start_time = m_stats.start(explore_cost, true, *this);
 
@@ -410,7 +413,7 @@ public:
         }));
 
         if (coins.size() == 0)
-            curl_easy_setopt(curl.get(), CURLOPT_TIMEOUT_MS, 200L);
+            curl_easy_setopt(curl.get(), CURLOPT_TIMEOUT_MS, 150L);
 
         const auto curl_code = curl_easy_perform(curl.get());
 
@@ -745,7 +748,9 @@ public:
                 if (big_block.has_value())
                 {
                     int left_size = big_block->sizeX / 2;
-                    if (3 < left_size)
+                    if (31 <= left_size)
+                        left_size = 31;
+                    else if (3 <= left_size)
                         left_size = 3;
                     int right_size = big_block->sizeX - left_size;
 
@@ -797,7 +802,7 @@ public:
 
             if (current_big_block_x < 3500 && current_big_block_y < 3500)
             {
-                constexpr auto block_size = 31;
+                constexpr auto block_size = 3500;
                 std::optional<CBlock> block;
                 while (!block.has_value())
                     block = post_explore(current_big_block_x, current_big_block_y, block_size, 1);
